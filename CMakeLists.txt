@@ -12,6 +12,9 @@ set(CMAKE_CXX_EXTENSIONS ON)
 
 if (MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=1")
+    # Disable C++ exceptions.
+    string(REGEX REPLACE "/EH[a-z]+" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 endif()
 
 option(DONUT_WITH_ASSIMP "" OFF)
@@ -33,13 +36,13 @@ file(GLOB sources "${source_folder}*.cpp" "${source_folder}*.h")
 
 donut_compile_shaders_all_platforms(
     TARGET ${project}_shaders
-    CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
+    CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/${source_folder}/shaders.cfg
     FOLDER ${folder}
     OUTPUT_BASE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}
 )
 
 add_executable(${project} WIN32 ${sources})
-target_link_libraries(${project} donut_app donut_engine)
+target_link_libraries(${project} donut_render donut_app donut_engine)
 add_dependencies(${project} ${project}_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
 

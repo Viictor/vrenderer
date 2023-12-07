@@ -27,6 +27,8 @@
 #include <donut/core/vfs/VFS.h>
 #include <nvrhi/utils.h>
 
+#include "testing_new_header.h"
+
 using namespace donut;
 
 static const char* g_WindowTitle = "Donut Example: Basic Triangle";
@@ -44,7 +46,7 @@ public:
 
     bool Init()
     {
-        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/basic_triangle" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/vRenderer" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         
         auto nativeFS = std::make_shared<vfs::NativeFileSystem>();
         engine::ShaderFactory shaderFactory(GetDevice(), nativeFS, appShaderPath);
