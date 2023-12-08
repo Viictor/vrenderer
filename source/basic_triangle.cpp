@@ -26,8 +26,9 @@
 #include <donut/core/log.h>
 #include <donut/core/vfs/VFS.h>
 #include <nvrhi/utils.h>
+#include <donut/core/vfs/VFS.h>
 
-#include "testing_new_header.h"
+#include "UIRenderer.h"
 
 using namespace donut;
 
@@ -41,18 +42,18 @@ private:
     nvrhi::GraphicsPipelineHandle m_Pipeline;
     nvrhi::CommandListHandle m_CommandList;
 
+    std::shared_ptr<engine::ShaderFactory> m_SharedFactory;
+
 public:
     using IRenderPass::IRenderPass;
 
-    bool Init()
+    bool Init(std::shared_ptr<vfs::RootFileSystem> rootFS)
     {
-        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/vRenderer" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         
-        auto nativeFS = std::make_shared<vfs::NativeFileSystem>();
-        engine::ShaderFactory shaderFactory(GetDevice(), nativeFS, appShaderPath);
+        m_SharedFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFS, "/shaders");
 
-        m_VertexShader = shaderFactory.CreateShader("shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
-        m_PixelShader = shaderFactory.CreateShader("shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+        m_VertexShader = m_SharedFactory->CreateShader("/shaders/vrenderer/shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
+        m_PixelShader = m_SharedFactory->CreateShader("/shaders/vrenderer/shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
 
         if (!m_VertexShader || !m_PixelShader)
         {
@@ -106,6 +107,11 @@ public:
         GetDevice()->executeCommandList(m_CommandList);
     }
 
+
+    std::shared_ptr<engine::ShaderFactory> GetShaderFactory()
+    {
+        return m_SharedFactory;
+    }
 };
 
 #ifdef WIN32
@@ -130,13 +136,27 @@ int main(int __argc, const char** __argv)
     }
     
     {
-        BasicTriangle example(deviceManager);
-        if (example.Init())
-        {
-            deviceManager->AddRenderPassToBack(&example);
-            deviceManager->RunMessageLoop();
-            deviceManager->RemoveRenderPass(&example);
-        }
+        std::filesystem::path mediaPath = app::GetDirectoryWithExecutable().parent_path() / "media";
+        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
+        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/vRenderer" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
+
+        std::shared_ptr<donut::vfs::NativeFileSystem> nativeFS = std::make_shared<donut::vfs::NativeFileSystem>();
+        std::shared_ptr<donut::vfs::RootFileSystem> rootFS = std::make_shared<donut::vfs::RootFileSystem>();
+        rootFS->mount("/media", mediaPath);
+        rootFS->mount("/shaders/donut", frameworkShaderPath);
+        rootFS->mount("/shaders/vrenderer", appShaderPath);
+        rootFS->mount("/native", nativeFS);
+        
+        std::shared_ptr<BasicTriangle> example = std::make_shared<BasicTriangle>(deviceManager);
+        std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, rootFS);
+
+        example->Init(rootFS);
+        gui->Init(example->GetShaderFactory());
+
+        deviceManager->AddRenderPassToBack(example.get());
+        deviceManager->AddRenderPassToBack(gui.get());
+
+        deviceManager->RunMessageLoop();
     }
     
     deviceManager->Shutdown();
