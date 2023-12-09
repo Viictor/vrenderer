@@ -16,6 +16,8 @@
 #include <donut/render/GeometryPasses.h>
 #include <donut/engine/FramebufferFactory.h>
 
+#include <donut/engine/SceneGraph.h>
+
 #include "UIRenderer.h"
 
 using namespace donut;
@@ -109,6 +111,10 @@ public:
         m_BindingCache = std::make_unique<engine::BindingCache>(GetDevice());
         m_OpaqueDrawStrategy = std::make_shared<render::InstancedOpaqueDrawStrategy>();
 
+        m_DeferredLightingPass = std::make_unique<render::DeferredLightingPass>(GetDevice(), m_CommonPasses);
+        m_DeferredLightingPass->Init(m_ShaderFactory);
+
+
         std::filesystem::path scenePath = "/media/glTF-Sample-Models/2.0";
         m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
 
@@ -191,6 +197,21 @@ public:
         Super::SceneLoaded();
 
         m_Scene->FinishedLoading(GetFrameIndex()); // This creates the mesh buffers after loading
+
+        if (m_Scene->GetSceneGraph()->GetLights().empty())
+        {
+            std::shared_ptr<engine::SceneGraphNode> node = std::make_shared<engine::SceneGraphNode>();
+            m_Scene->GetSceneGraph()->Attach(m_Scene->GetSceneGraph()->GetRootNode(), node);
+
+            std::shared_ptr<engine::DirectionalLight> directionalLight = std::make_shared<engine::DirectionalLight>();
+            node->SetLeaf(directionalLight);
+
+            directionalLight->SetName("Sun");
+            directionalLight->SetDirection(dm::double3(.1, -.4, .1));
+            directionalLight->angularSize = .53f;
+            directionalLight->irradiance = 2.0f;
+
+        }
     }
 
     bool KeyboardUpdate(int key, int scancode, int action, int mods) override
@@ -234,6 +255,7 @@ public:
             m_RenderTargets = nullptr;
             m_BindingCache->Clear();
             m_GBufferPass.reset();
+            m_DeferredLightingPass->ResetBindingCache();
 
             m_RenderTargets = std::make_unique<RenderTargets>();
             m_RenderTargets->Init(GetDevice(), math::uint2(fbinfo.width, fbinfo.height), sampleCount, false, false);
@@ -268,7 +290,16 @@ public:
             "GBufferFill",
             true);
 
-        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->GBufferDiffuse, m_BindingCache.get());
+        render::DeferredLightingPass::Inputs deferredInputs;
+        deferredInputs.SetGBuffer(*m_RenderTargets);
+        deferredInputs.ambientColorTop = 0.2f;
+        deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
+        deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
+        deferredInputs.output = m_RenderTargets->ShadedColor;
+
+        m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
+
+        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->ShadedColor, m_BindingCache.get());
 
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);
