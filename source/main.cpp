@@ -83,6 +83,8 @@ private:
     // Basic 2D projection
     engine::PlanarView m_View;
 
+    float m_Rotation = .0f;
+
 public:
 
 	VRenderer(app::DeviceManager* deviceManager, const std::string& sceneName)
@@ -177,6 +179,12 @@ public:
         m_Scene->FinishedLoading(GetFrameIndex()); // This creates the mesh buffers after loading
     }
 
+    void Animate(float seconds) override
+    {
+        m_Rotation += seconds * 1.1f;
+        GetDeviceManager()->SetInformativeWindowTitle("vRenderer");
+    }
+
     virtual void RenderScene(nvrhi::IFramebuffer* framebuffer) override
     {
         m_Scene->RefreshSceneGraph(GetFrameIndex()); // Updates transforms and states of scene graph nodes
@@ -199,7 +207,7 @@ public:
         {
             float2 renderTargetSize = float2(m_RenderTargets->GetSize());
 
-            math::affine3 viewMatrix = math::yawPitchRoll(0.f, 0.f, 0.f)
+            math::affine3 viewMatrix = math::yawPitchRoll(m_Rotation, 0.f, 0.f)
                 * math::yawPitchRoll(0.f, math::radians(-30.f), 0.f)
                 * math::translation(math::float3(0, 0, 2));
 
@@ -224,11 +232,22 @@ public:
         m_RenderTargets->Clear(m_CommandList);
 
         render::GBufferFillPass::Context context;
-        render::RenderView(
+        /*render::RenderView(
             m_CommandList,
             &m_View,
             &m_View,
             m_RenderTargets->GBufferFramebuffer->GetFramebuffer(m_View),
+            *m_OpaqueDrawStrategy,
+            *m_GBufferPass,
+            context,
+            false);*/
+
+        render::RenderCompositeView(
+            m_CommandList,
+            &m_View,
+            &m_View,
+            *m_RenderTargets->GBufferFramebuffer,
+            m_Scene->GetSceneGraph()->GetRootNode(),
             *m_OpaqueDrawStrategy,
             *m_GBufferPass,
             context,
