@@ -18,7 +18,7 @@ private:
 
 public:
 
-	UIRenderer(donut::app::DeviceManager* deviceManager, std::shared_ptr<donut::vfs::RootFileSystem> rootFS)
+	UIRenderer(donut::app::DeviceManager* deviceManager, std::shared_ptr<donut::vfs::IFileSystem> rootFS)
 		: ImGui_Renderer(deviceManager)
 	{
 		m_CommandList = GetDevice()->createCommandList();

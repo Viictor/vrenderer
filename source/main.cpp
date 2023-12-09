@@ -21,6 +21,8 @@
 using namespace donut;
 using namespace donut::math;
 
+static const char* g_WindowTitle = "vRenderer";
+
 class RenderTargets : public render::GBufferRenderTargets
 {
 public:
@@ -123,8 +125,20 @@ public:
         else
             SetCurrentSceneName("/native/" + sceneName);
 
+        m_FirstPersonCamera.LookAt(float3(.0f, 1.8f, .0f), float3(1.0f, 1.8f, .0f));
         m_FirstPersonCamera.SetMoveSpeed(3.0f);
 	}
+
+    void SetupView()
+    {
+        float2 renderTargetSize = float2(m_RenderTargets->GetSize());
+
+        float4x4 projection = math::perspProjD3DStyle(math::radians(60.f), renderTargetSize.x / renderTargetSize.y, 0.1f, 1000.f);
+
+        m_View.SetViewport(nvrhi::Viewport(renderTargetSize.x, renderTargetSize.y));
+        m_View.SetMatrices(m_FirstPersonCamera.GetWorldToViewMatrix(), projection);
+        m_View.UpdateCache();
+    }
 
     void SetCurrentSceneName(const std::string& sceneName)
     {
@@ -179,10 +193,32 @@ public:
         m_Scene->FinishedLoading(GetFrameIndex()); // This creates the mesh buffers after loading
     }
 
+    bool KeyboardUpdate(int key, int scancode, int action, int mods) override
+    {
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
+            glfwSetWindowShouldClose(GetDeviceManager()->GetWindow(), true);
+
+        m_FirstPersonCamera.KeyboardUpdate(key, scancode, action, mods);
+
+        return true;
+    }
+
+    bool MousePosUpdate(double xpos, double ypos) override
+    {
+        m_FirstPersonCamera.MousePosUpdate(xpos, ypos);
+        return true;
+    }
+
+    bool MouseButtonUpdate(int button, int action, int mods) override
+    {
+        m_FirstPersonCamera.MouseButtonUpdate(button, action, mods);
+        return true;
+    }
+
     void Animate(float seconds) override
     {
-        m_Rotation += seconds * 1.1f;
-        GetDeviceManager()->SetInformativeWindowTitle("vRenderer");
+        m_FirstPersonCamera.Animate(seconds);
+        GetDeviceManager()->SetInformativeWindowTitle(g_WindowTitle);
     }
 
     virtual void RenderScene(nvrhi::IFramebuffer* framebuffer) override
@@ -203,20 +239,7 @@ public:
             m_RenderTargets->Init(GetDevice(), math::uint2(fbinfo.width, fbinfo.height), sampleCount, false, false);
         }
 
-        //SetupView
-        {
-            float2 renderTargetSize = float2(m_RenderTargets->GetSize());
-
-            math::affine3 viewMatrix = math::yawPitchRoll(m_Rotation, 0.f, 0.f)
-                * math::yawPitchRoll(0.f, math::radians(-30.f), 0.f)
-                * math::translation(math::float3(0, 0, 2));
-
-            float4x4 projection = math::perspProjD3DStyle(math::radians(60.f), renderTargetSize.x / renderTargetSize.y, 0.1f, 10.f);
-
-            m_View.SetViewport(nvrhi::Viewport(renderTargetSize.x, renderTargetSize.y));
-            m_View.SetMatrices(viewMatrix, projection);
-            m_View.UpdateCache();
-        }
+        SetupView();
         
         if (!m_GBufferPass)
         {
@@ -232,15 +255,6 @@ public:
         m_RenderTargets->Clear(m_CommandList);
 
         render::GBufferFillPass::Context context;
-        /*render::RenderView(
-            m_CommandList,
-            &m_View,
-            &m_View,
-            m_RenderTargets->GBufferFramebuffer->GetFramebuffer(m_View),
-            *m_OpaqueDrawStrategy,
-            *m_GBufferPass,
-            context,
-            false);*/
 
         render::RenderCompositeView(
             m_CommandList,
@@ -251,7 +265,8 @@ public:
             *m_OpaqueDrawStrategy,
             *m_GBufferPass,
             context,
-            false);
+            "GBufferFill",
+            true);
 
         m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->GBufferDiffuse, m_BindingCache.get());
 
@@ -276,7 +291,7 @@ int main(int __argc, const char** __argv)
     deviceParams.enableNvrhiValidationLayer = true;
 #endif
 
-    if (!deviceManager->CreateWindowDeviceAndSwapChain(deviceParams, "vRenderer"))
+    if (!deviceManager->CreateWindowDeviceAndSwapChain(deviceParams, g_WindowTitle))
     {
         log::fatal("Cannot initialize a graphics device with the requested parameters");
         return 1;
@@ -285,12 +300,12 @@ int main(int __argc, const char** __argv)
     {
 
         std::shared_ptr<VRenderer> vRenderer = std::make_shared<VRenderer>(deviceManager, "");
-        //std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, vRenderer->GetRootFs());
+        std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, vRenderer->GetRootFs());
 
-        //gui->Init(vRenderer->GetShaderFactory());
+        gui->Init(vRenderer->GetShaderFactory());
 
         deviceManager->AddRenderPassToBack(vRenderer.get());
-        //deviceManager->AddRenderPassToBack(gui.get());
+        deviceManager->AddRenderPassToBack(gui.get());
 
         deviceManager->RunMessageLoop();
     }
