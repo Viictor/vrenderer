@@ -4,6 +4,7 @@
 #include <nvrhi/common/misc.h>
 #include <donut/app/DeviceManager.h>
 #include <donut/app/imgui_renderer.h>
+#include <donut/core/vfs/VFS.h>
 
 using namespace donut::app;
 

@@ -113,55 +113,55 @@ public:
         return m_SharedFactory;
     }
 };
-
-#ifdef WIN32
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-#else
-int main(int __argc, const char** __argv)
-#endif
-{
-    nvrhi::GraphicsAPI api = app::GetGraphicsAPIFromCommandLine(__argc, __argv);
-    app::DeviceManager* deviceManager = app::DeviceManager::Create(api);
-
-    app::DeviceCreationParameters deviceParams;
-#ifdef _DEBUG
-    deviceParams.enableDebugRuntime = true; 
-    deviceParams.enableNvrhiValidationLayer = true;
-#endif
-
-    if (!deviceManager->CreateWindowDeviceAndSwapChain(deviceParams, g_WindowTitle))
-    {
-        log::fatal("Cannot initialize a graphics device with the requested parameters");
-        return 1;
-    }
-    
-    {
-        std::filesystem::path mediaPath = app::GetDirectoryWithExecutable().parent_path() / "media";
-        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
-        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/vRenderer" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
-
-        std::shared_ptr<donut::vfs::NativeFileSystem> nativeFS = std::make_shared<donut::vfs::NativeFileSystem>();
-        std::shared_ptr<donut::vfs::RootFileSystem> rootFS = std::make_shared<donut::vfs::RootFileSystem>();
-        rootFS->mount("/media", mediaPath);
-        rootFS->mount("/shaders/donut", frameworkShaderPath);
-        rootFS->mount("/shaders/vrenderer", appShaderPath);
-        rootFS->mount("/native", nativeFS);
-        
-        std::shared_ptr<BasicTriangle> example = std::make_shared<BasicTriangle>(deviceManager);
-        std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, rootFS);
-
-        example->Init(rootFS);
-        gui->Init(example->GetShaderFactory());
-
-        deviceManager->AddRenderPassToBack(example.get());
-        deviceManager->AddRenderPassToBack(gui.get());
-
-        deviceManager->RunMessageLoop();
-    }
-    
-    deviceManager->Shutdown();
-
-    delete deviceManager;
-
-    return 0;
-}
+//
+//#ifdef WIN32
+//int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+//#else
+//int main(int __argc, const char** __argv)
+//#endif
+//{
+//    nvrhi::GraphicsAPI api = app::GetGraphicsAPIFromCommandLine(__argc, __argv);
+//    app::DeviceManager* deviceManager = app::DeviceManager::Create(api);
+//
+//    app::DeviceCreationParameters deviceParams;
+//#ifdef _DEBUG
+//    deviceParams.enableDebugRuntime = true; 
+//    deviceParams.enableNvrhiValidationLayer = true;
+//#endif
+//
+//    if (!deviceManager->CreateWindowDeviceAndSwapChain(deviceParams, g_WindowTitle))
+//    {
+//        log::fatal("Cannot initialize a graphics device with the requested parameters");
+//        return 1;
+//    }
+//    
+//    {
+//        std::filesystem::path mediaPath = app::GetDirectoryWithExecutable().parent_path() / "media";
+//        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
+//        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/vRenderer" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
+//
+//        std::shared_ptr<donut::vfs::NativeFileSystem> nativeFS = std::make_shared<donut::vfs::NativeFileSystem>();
+//        std::shared_ptr<donut::vfs::RootFileSystem> rootFS = std::make_shared<donut::vfs::RootFileSystem>();
+//        rootFS->mount("/media", mediaPath);
+//        rootFS->mount("/shaders/donut", frameworkShaderPath);
+//        rootFS->mount("/shaders/vrenderer", appShaderPath);
+//        rootFS->mount("/native", nativeFS);
+//        
+//        std::shared_ptr<BasicTriangle> example = std::make_shared<BasicTriangle>(deviceManager);
+//        std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, rootFS);
+//
+//        example->Init(rootFS);
+//        gui->Init(example->GetShaderFactory());
+//
+//        deviceManager->AddRenderPassToBack(example.get());
+//        deviceManager->AddRenderPassToBack(gui.get());
+//
+//        deviceManager->RunMessageLoop();
+//    }
+//    
+//    deviceManager->Shutdown();
+//
+//    delete deviceManager;
+//
+//    return 0;
+//}
