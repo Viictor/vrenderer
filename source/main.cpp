@@ -19,6 +19,7 @@
 #include <donut/engine/SceneGraph.h>
 
 #include "UIRenderer.h"
+#include "terrain/TerrainPass.h"
 
 using namespace donut;
 using namespace donut::math;
@@ -84,6 +85,9 @@ private:
     std::unique_ptr<render::DeferredLightingPass> m_DeferredLightingPass;
     std::shared_ptr<render::InstancedOpaqueDrawStrategy> m_OpaqueDrawStrategy;
 
+    // Terrain Geometry Pass
+    std::unique_ptr<vRenderer::TerrainPass> m_TerrainPass;
+
     // Basic 2D projection
     engine::PlanarView m_View;
 
@@ -114,6 +118,9 @@ public:
         m_DeferredLightingPass = std::make_unique<render::DeferredLightingPass>(GetDevice(), m_CommonPasses);
         m_DeferredLightingPass->Init(m_ShaderFactory);
 
+        m_CommandList = GetDevice()->createCommandList();
+        m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice());
+        m_TerrainPass->Init(*m_ShaderFactory, vRenderer::TerrainPass::CreateParameters(), m_CommandList);
 
         std::filesystem::path scenePath = "/media/glTF-Sample-Models/2.0";
         m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
@@ -124,12 +131,19 @@ public:
                 "Please make sure that folder contains valid scene files.", scenePath.generic_string().c_str());
         }
 
-        m_CommandList = GetDevice()->createCommandList();
 
         if (sceneName.empty())
             SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "Sponza.gltf"));
         else
-            SetCurrentSceneName("/native/" + sceneName);
+            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, sceneName));
+
+        {
+            m_Scene = std::make_unique<engine::Scene>(deviceManager->GetDevice(), *m_ShaderFactory, m_RootFs, m_TextureCache, nullptr, nullptr);
+            SceneLoaded();
+            
+            //auto node = std::make_shared<engine::SceneGraphNode>();
+            //m_Scene->GetSceneGraph()->SetRootNode(node);
+        }
 
         m_FirstPersonCamera.LookAt(float3(.0f, 1.8f, .0f), float3(1.0f, 1.8f, .0f));
         m_FirstPersonCamera.SetMoveSpeed(3.0f);
@@ -195,6 +209,8 @@ public:
     virtual void SceneLoaded() override
     {
         Super::SceneLoaded();
+        if (!m_Scene->GetSceneGraph().get())
+            return;
 
         m_Scene->FinishedLoading(GetFrameIndex()); // This creates the mesh buffers after loading
 
@@ -244,7 +260,8 @@ public:
 
     virtual void RenderScene(nvrhi::IFramebuffer* framebuffer) override
     {
-        m_Scene->RefreshSceneGraph(GetFrameIndex()); // Updates transforms and states of scene graph nodes
+        if (m_Scene->GetSceneGraph().get())
+            m_Scene->RefreshSceneGraph(GetFrameIndex()); // Updates transforms and states of scene graph nodes
 
         const nvrhi::FramebufferInfoEx& fbinfo = framebuffer->getFramebufferInfo();
 
@@ -272,7 +289,8 @@ public:
 
         m_CommandList->open();
 
-        m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
+        if (m_Scene->GetSceneGraph().get())
+            m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
 
         m_RenderTargets->Clear(m_CommandList);
 
@@ -290,6 +308,28 @@ public:
             "GBufferFill",
             true);
 
+        render::DrawItem drawItem;
+        drawItem.instance = m_TerrainPass->GetMeshInstance();
+        drawItem.mesh = drawItem.instance->GetMesh().get();
+        drawItem.geometry = drawItem.mesh->geometries[0].get();
+        drawItem.material = drawItem.geometry->material.get();
+        drawItem.buffers = drawItem.mesh->buffers.get();
+        drawItem.distanceToCamera = 0;
+        drawItem.cullMode = nvrhi::RasterCullMode::Back;
+
+        render::PassthroughDrawStrategy drawStrategy;
+        drawStrategy.SetData(&drawItem, 1);
+
+        vRenderer::TerrainPass::Context terrainContext;
+        RenderView(
+            m_CommandList,
+            &m_View,
+            &m_View,
+            m_RenderTargets->GBufferFramebuffer->GetFramebuffer(m_View),
+            drawStrategy,
+            *m_TerrainPass,
+            terrainContext);
+
         render::DeferredLightingPass::Inputs deferredInputs;
         deferredInputs.SetGBuffer(*m_RenderTargets);
         deferredInputs.ambientColorTop = 0.2f;
@@ -299,7 +339,10 @@ public:
 
         m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
 
-        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->ShadedColor, m_BindingCache.get());
+
+        
+
+        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->GBufferDiffuse, m_BindingCache.get());
 
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);

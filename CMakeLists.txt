@@ -5,6 +5,7 @@ project(vRenderer)
 set(project vRenderer)
 set(folder "vRenderer")
 set(source_folder "source/")
+set(shaders_folder "shaders/")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,11 +33,11 @@ add_subdirectory(donut)
 
 include(donut/compileshaders.cmake)
 file(GLOB shaders "*.hlsl")
-file(GLOB sources "${source_folder}*.cpp" "${source_folder}*.h")
+file(GLOB sources "${source_folder}*.cpp" "${source_folder}/*/*.cpp" "${source_folder}*.h" "${source_folder}/*/*.h")
 
 donut_compile_shaders_all_platforms(
     TARGET ${project}_shaders
-    CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/${source_folder}/shaders.cfg
+    CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/${shaders_folder}/shaders.cfg
     FOLDER ${folder}
     OUTPUT_BASE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}
 )
