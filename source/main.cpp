@@ -119,8 +119,13 @@ public:
         m_DeferredLightingPass->Init(m_ShaderFactory);
 
         m_CommandList = GetDevice()->createCommandList();
+
+
+        std::filesystem::path textureFileName ="/media/heightmap.png";
+        std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
+
         m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice());
-        m_TerrainPass->Init(*m_ShaderFactory, vRenderer::TerrainPass::CreateParameters(), m_CommandList);
+        m_TerrainPass->Init(*m_ShaderFactory, vRenderer::TerrainPass::CreateParameters(), m_CommandList, heightmapTexture);
 
         std::filesystem::path scenePath = "/media/glTF-Sample-Models/2.0";
         m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
@@ -308,27 +313,11 @@ public:
             "GBufferFill",
             true);
 
-        render::DrawItem drawItem;
-        drawItem.instance = m_TerrainPass->GetMeshInstance();
-        drawItem.mesh = drawItem.instance->GetMesh().get();
-        drawItem.geometry = drawItem.mesh->geometries[0].get();
-        drawItem.material = drawItem.geometry->material.get();
-        drawItem.buffers = drawItem.mesh->buffers.get();
-        drawItem.distanceToCamera = 0;
-        drawItem.cullMode = nvrhi::RasterCullMode::Back;
-
-        render::PassthroughDrawStrategy drawStrategy;
-        drawStrategy.SetData(&drawItem, 1);
-
-        vRenderer::TerrainPass::Context terrainContext;
-        RenderView(
+        m_TerrainPass->Render(
             m_CommandList,
             &m_View,
             &m_View,
-            m_RenderTargets->GBufferFramebuffer->GetFramebuffer(m_View),
-            drawStrategy,
-            *m_TerrainPass,
-            terrainContext);
+            *m_RenderTargets->GBufferFramebuffer);
 
         render::DeferredLightingPass::Inputs deferredInputs;
         deferredInputs.SetGBuffer(*m_RenderTargets);

@@ -2,6 +2,9 @@
 #include <donut/engine/ShaderFactory.h>
 #include <donut/engine/SceneTypes.h>
 #include <donut/engine/SceneGraph.h>
+#include <donut/engine/TextureCache.h>
+#include <donut/engine/FramebufferFactory.h>
+#include <donut/core/vfs/VFS.h>
 #include <nvrhi/utils.h>
 
 using namespace donut::math;
@@ -15,8 +18,10 @@ TerrainPass::TerrainPass(nvrhi::IDevice* device)
 {
 }
 
-void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList)
+void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture)
 {
+	const float scale = 1.0f;
+
 	m_SupportedViewTypes = engine::ViewType::PLANAR;
 
 	m_VertexShader = CreateVertexShader(shaderFactory, params);
@@ -30,99 +35,80 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	m_ViewBindingSet = CreateViewBindingSet();
 	m_LightBindingLayout = CreateLightBindingLayout();
 
+	std::vector<float3> vPositions;
+	std::vector<uint32_t> vIndices;
+	uint32_t vPositionsByteSize = 0;
+	if (heightmapTexture)
+	{
+		engine::TextureData* textureData = static_cast<engine::TextureData*>(heightmapTexture.get());
 
+		const int width = textureData->width;
+		const int height = textureData->height;
+
+		//const int side = (int)sqrtf((float)textureData->dataLayout[0][0].dataSize / sizeof(float));
+		vPositions.resize(width * height);
+		vPositionsByteSize = width * height * sizeof(float3);
+
+		const int halfWidth = width / 2;
+		const int halfHeight = height / 2;
+		const uint8_t* byteData = reinterpret_cast<const uint8_t*>(textureData->data->data());
+
+		size_t index = 0;
+		for (int h = -halfHeight; h < halfHeight; h++)
+		{
+			for (int w = -halfWidth; w < halfWidth; w++)
+			{
+				assert(index < vPositions.size());
+				vPositions[index] = float3((float) w / halfWidth * scale, (float)byteData[index * 4] / 255.0f, (float)h / halfHeight * scale);
+				index++;
+			}
+		}
+
+		index = 0;
+		vIndices.resize((width -1) * (height -1) * 6);
+		for (size_t i = 0; i < height - 1; i++)
+		{
+			for (size_t j = 0; j < width - 1; j++)
+			{
+				uint32_t indexBottomLeft = i * height + j;
+				uint32_t indexTopLeft = (i + 1) * height + j;
+				uint32_t indexTopRight = (i + 1) * height + j + 1;
+				uint32_t indexBottomRight = i * height + j + 1;
+
+				vIndices[index++] = indexBottomLeft;
+				vIndices[index++] = indexTopLeft;
+				vIndices[index++] = indexTopRight;
+
+				vIndices[index++] = indexBottomLeft;
+				vIndices[index++] = indexTopRight;
+				vIndices[index++] = indexBottomRight;
+			}
+		}
+	}
 	commandList->open();
-	// Terrain Geo data
-	static const uint32_t g_Indices[] = {
-		 0,  1,  2,   0,  3,  1, // front face
-		 4,  5,  6,   4,  7,  5, // left face
-		 8,  9, 10,   8, 11,  9, // right face
-		12, 13, 14,  12, 15, 13, // back face
-		16, 17, 18,  16, 19, 17, // top face
-		20, 21, 22,  20, 23, 21, // bottom face
-	};
-	static const donut::math::float3 g_Positions[] = {
-	{-0.5f,  0.5f, -0.5f}, // front face
-	{ 0.5f, -0.5f, -0.5f},
-	{-0.5f, -0.5f, -0.5f},
-	{ 0.5f,  0.5f, -0.5f},
-
-	{ 0.5f, -0.5f, -0.5f}, // right side face
-	{ 0.5f,  0.5f,  0.5f},
-	{ 0.5f, -0.5f,  0.5f},
-	{ 0.5f,  0.5f, -0.5f},
-
-	{-0.5f,  0.5f,  0.5f}, // left side face
-	{-0.5f, -0.5f, -0.5f},
-	{-0.5f, -0.5f,  0.5f},
-	{-0.5f,  0.5f, -0.5f},
-
-	{ 0.5f,  0.5f,  0.5f}, // back face
-	{-0.5f, -0.5f,  0.5f},
-	{ 0.5f, -0.5f,  0.5f},
-	{-0.5f,  0.5f,  0.5f},
-
-	{-0.5f,  0.5f, -0.5f}, // top face
-	{ 0.5f,  0.5f,  0.5f},
-	{ 0.5f,  0.5f, -0.5f},
-	{-0.5f,  0.5f,  0.5f},
-
-	{ 0.5f, -0.5f,  0.5f}, // bottom face
-	{-0.5f, -0.5f, -0.5f},
-	{ 0.5f, -0.5f, -0.5f},
-	{-0.5f, -0.5f,  0.5f},
-	};
-	static const donut::math::uint g_Normals[] = {
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 0.0f, -1.0f, 0.0f)), // front face
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 0.0f, -1.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 0.0f, -1.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 0.0f, -1.0f, 0.0f)),
-
-		donut::math::vectorToSnorm8(donut::math::float4(1.0f, 0.0f, 0.0f, 0.0f)), // right side face
-		donut::math::vectorToSnorm8(donut::math::float4(1.0f, 0.0f, 0.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(1.0f, 0.0f, 0.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(1.0f, 0.0f, 0.0f, 0.0f)),
-
-		donut::math::vectorToSnorm8(donut::math::float4(-1.0f, 0.0f, 0.0f, 0.0f)), // left side face
-		donut::math::vectorToSnorm8(donut::math::float4(-1.0f, 0.0f, 0.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(-1.0f, 0.0f, 0.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(-1.0f, 0.0f, 0.0f, 0.0f)),
-
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 0.0f, 1.0f, 0.0f)), // back face
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 0.0f, 1.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 0.0f, 1.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 0.0f, 1.0f, 0.0f)),
-
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 1.0f, 0.0f, 0.0f)), // top face
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 1.0f, 0.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 1.0f, 0.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, 1.0f, 0.0f, 0.0f)),
-
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, -1.0f, 0.0f, 0.0f)), // bottom face
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, -1.0f, 0.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, -1.0f, 0.0f, 0.0f)),
-		donut::math::vectorToSnorm8(donut::math::float4(0.0f, -1.0f, 0.0f, 0.0f)),
-	};
 
 	m_Buffers = std::make_shared<engine::BufferGroup>();
-	m_Buffers->indexBuffer = CreateGeometryBuffer(m_Device, commandList, "IndexBuffer", g_Indices, sizeof(g_Indices), false);
+	if (heightmapTexture)
+	{
+		m_Buffers->indexBuffer = CreateGeometryBuffer(m_Device, commandList, "IndexBuffer", vIndices.data(), vIndices.size() * sizeof(uint32_t), false);
 
-	uint64_t vertexBufferSize = 0;
-	m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).setByteOffset(vertexBufferSize).setByteSize(sizeof(g_Positions)); vertexBufferSize += sizeof(g_Positions);
-	m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).setByteOffset(vertexBufferSize).setByteSize(sizeof(g_Normals)); vertexBufferSize += sizeof(g_Normals);
-	m_Buffers->vertexBuffer = CreateGeometryBuffer(m_Device, commandList, "VertexBuffer", nullptr, vertexBufferSize, true);
+		uint64_t vertexBufferSize = 0;
+		m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
+		m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
+		m_Buffers->vertexBuffer = CreateGeometryBuffer(m_Device, commandList, "VertexBuffer", nullptr, vertexBufferSize, true);
 
-	commandList->beginTrackingBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::CopyDest);
-	commandList->writeBuffer(m_Buffers->vertexBuffer, g_Positions, sizeof(g_Positions), m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).byteOffset);
-	commandList->writeBuffer(m_Buffers->vertexBuffer, g_Normals, sizeof(g_Normals), m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).byteOffset);
-	commandList->setPermanentBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::VertexBuffer);
-	commandList->close();
-	m_Device->executeCommandList(commandList);
+		commandList->beginTrackingBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::CopyDest);
+		commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).byteOffset);
+		commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).byteOffset);
+		commandList->setPermanentBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::VertexBuffer);
+		commandList->close();
+		m_Device->executeCommandList(commandList);
+	}
 
 	std::shared_ptr<engine::MeshGeometry> geometry = std::make_shared<engine::MeshGeometry>();
 	geometry->material = nullptr;
-	geometry->numIndices = dim(g_Indices);
-	geometry->numVertices = dim(g_Positions);
+	geometry->numIndices = vIndices.size();
+	geometry->numVertices = vPositions.size();
 
 	m_MeshInfo = std::make_shared<engine::MeshInfo>();
 	m_MeshInfo->name = "TerrainMesh";
@@ -133,6 +119,64 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	m_MeshInfo->geometries.push_back(geometry);
 
 	m_MeshInstance = std::make_shared<engine::MeshInstance>(m_MeshInfo);
+}
+
+void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompositeView* compositeView, const engine::ICompositeView* compositeViewPrev, engine::FramebufferFactory& framebufferFactory)
+{
+	commandList->beginMarker("TerrainPass");
+
+	engine::ViewType::Enum supportedViewTypes = GetSupportedViewTypes();
+
+	if (compositeViewPrev)
+	{
+		// the views must have the same topology
+		assert(compositeView->GetNumChildViews(supportedViewTypes) == compositeViewPrev->GetNumChildViews(supportedViewTypes));
+	}
+
+	for (uint viewIndex = 0; viewIndex < compositeView->GetNumChildViews(supportedViewTypes); viewIndex++)
+	{
+		const engine::IView* view = compositeView->GetChildView(supportedViewTypes, viewIndex);
+		const engine::IView* viewPrev = compositeViewPrev ? compositeViewPrev->GetChildView(supportedViewTypes, viewIndex) : nullptr;
+
+		assert(view != nullptr);
+
+		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
+
+		{
+			Context passContext;
+			SetupView(passContext, commandList, view, viewPrev);
+
+			bool stateValid = false;
+
+			nvrhi::GraphicsState graphicsState;
+			graphicsState.framebuffer = framebuffer;
+			graphicsState.viewport = view->GetViewportState();
+			graphicsState.shadingRateState = view->GetVariableRateShadingState();
+
+			SetupInputBuffers(passContext, m_Buffers.get(), graphicsState);
+
+			const bool drawMaterial = SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::Back, graphicsState);
+
+			if (drawMaterial)
+			{
+				commandList->setGraphicsState(graphicsState);
+
+				nvrhi::DrawArguments args;
+				args.vertexCount = m_MeshInfo->geometries[0]->numIndices;
+				args.instanceCount = 1;
+				args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
+				args.startInstanceLocation = m_MeshInstance->GetInstanceIndex();
+
+				args.startIndexLocation = m_MeshInfo->indexOffset + m_MeshInfo->geometries[0]->indexOffsetInMesh;
+				
+				SetPushConstants(passContext, commandList, graphicsState, args);
+
+				commandList->drawIndexed(args);
+			}
+		}
+	}
+
+	commandList->endMarker();
 }
 
 engine::ViewType::Enum TerrainPass::GetSupportedViewTypes() const

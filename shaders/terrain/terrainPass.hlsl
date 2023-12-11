@@ -43,7 +43,7 @@ void main_ps(
 
     //MaterialSample surface = EvaluateSceneMaterial(i_vtx.normal, i_vtx.tangent, g_Material, textures);
     
-    o_channel0.xyz = float3(1.0,1.0,1.0);
+    o_channel0.xyz = float3(i_vtx.pos.yyy);
     o_channel0.w = 1.0;
     o_channel1.xyz = float3(0.0, 0.0, 0.0);
     o_channel1.w = 1.0;

@@ -7,6 +7,7 @@
 namespace donut::engine
 {
 	class ShaderFactory;
+	struct LoadedTexture;
 }
 
 using namespace donut;
@@ -91,7 +92,13 @@ namespace vRenderer
 	public:
 		TerrainPass(nvrhi::IDevice* device);
 
-		void Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList);
+		void Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture);
+		void Render(
+			nvrhi::ICommandList* commandList, 
+			const engine::ICompositeView* compositeView,
+			const engine::ICompositeView* compositeViewPrev,
+			engine::FramebufferFactory& framebufferFactory
+		);
 
 		// IGeometryPass implementation
 		[[nodiscard]] engine::ViewType::Enum GetSupportedViewTypes() const override;
