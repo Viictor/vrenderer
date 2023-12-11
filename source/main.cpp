@@ -137,10 +137,10 @@ public:
         }
 
 
-        if (sceneName.empty())
-            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "Sponza.gltf"));
-        else
-            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, sceneName));
+        //if (sceneName.empty())
+        //    SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "Sponza.gltf"));
+        //else
+        //    SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, sceneName));
 
         {
             m_Scene = std::make_unique<engine::Scene>(deviceManager->GetDevice(), *m_ShaderFactory, m_RootFs, m_TextureCache, nullptr, nullptr);
@@ -301,17 +301,20 @@ public:
 
         render::GBufferFillPass::Context context;
 
-        render::RenderCompositeView(
-            m_CommandList,
-            &m_View,
-            &m_View,
-            *m_RenderTargets->GBufferFramebuffer,
-            m_Scene->GetSceneGraph()->GetRootNode(),
-            *m_OpaqueDrawStrategy,
-            *m_GBufferPass,
-            context,
-            "GBufferFill",
-            true);
+        if (m_Scene->GetSceneGraph().get())
+        {
+            render::RenderCompositeView(
+                m_CommandList,
+                &m_View,
+                &m_View,
+                *m_RenderTargets->GBufferFramebuffer,
+                m_Scene->GetSceneGraph()->GetRootNode(),
+                *m_OpaqueDrawStrategy,
+                *m_GBufferPass,
+                context,
+                "GBufferFill",
+                true);
+        }
 
         m_TerrainPass->Render(
             m_CommandList,
@@ -319,18 +322,17 @@ public:
             &m_View,
             *m_RenderTargets->GBufferFramebuffer);
 
-        render::DeferredLightingPass::Inputs deferredInputs;
-        deferredInputs.SetGBuffer(*m_RenderTargets);
-        deferredInputs.ambientColorTop = 0.2f;
-        deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
-        deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
-        deferredInputs.output = m_RenderTargets->ShadedColor;
+        if (m_Scene->GetSceneGraph().get())
+        {
+            render::DeferredLightingPass::Inputs deferredInputs;
+            deferredInputs.SetGBuffer(*m_RenderTargets);
+            deferredInputs.ambientColorTop = 0.2f;
+            deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
+            deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
+            deferredInputs.output = m_RenderTargets->ShadedColor;
 
-        m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
-
-
-        
-
+            m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
+        }
         m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->GBufferDiffuse, m_BindingCache.get());
 
         m_CommandList->close();

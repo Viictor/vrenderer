@@ -43,11 +43,15 @@ void main_ps(
 
     //MaterialSample surface = EvaluateSceneMaterial(i_vtx.normal, i_vtx.tangent, g_Material, textures);
     
-    o_channel0.xyz = float3(i_vtx.pos.yyy);
+    float3 dx = ddx(i_vtx.pos);
+    float3 dy = ddy(i_vtx.pos);
+    float3 normal = -normalize(cross(dx, dy));
+    
+    o_channel0.xyz = float3(i_vtx.pos.yyy / 20.f);
     o_channel0.w = 1.0;
     o_channel1.xyz = float3(0.0, 0.0, 0.0);
     o_channel1.w = 1.0;
-    o_channel2.xyz = i_vtx.normal;
+    o_channel2.xyz = normal;
     o_channel2.w = 0.2;
     o_channel3.xyz = float3(0.0,0.0,0.0);
     o_channel3.w = 0;

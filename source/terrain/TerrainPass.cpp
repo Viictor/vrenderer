@@ -20,7 +20,7 @@ TerrainPass::TerrainPass(nvrhi::IDevice* device)
 
 void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture)
 {
-	const float scale = 1.0f;
+	const float scale = 4.0f;
 
 	m_SupportedViewTypes = engine::ViewType::PLANAR;
 
@@ -59,13 +59,14 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 			for (int w = -halfWidth; w < halfWidth; w++)
 			{
 				assert(index < vPositions.size());
-				vPositions[index] = float3((float) w / halfWidth * scale, (float)byteData[index * 4] / 255.0f, (float)h / halfHeight * scale);
+				vPositions[index] = float3((float)w / halfWidth, (float)byteData[index * 4] / 255.0f, (float)h / halfHeight);
+				vPositions[index] *= scale;
 				index++;
 			}
 		}
 
 		index = 0;
-		vIndices.resize((width -1) * (height -1) * 6);
+		vIndices.resize((width - 1) * (height - 1) * 6);
 		for (size_t i = 0; i < height - 1; i++)
 		{
 			for (size_t j = 0; j < width - 1; j++)
@@ -84,12 +85,9 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 				vIndices[index++] = indexBottomRight;
 			}
 		}
-	}
-	commandList->open();
+		commandList->open();
 
-	m_Buffers = std::make_shared<engine::BufferGroup>();
-	if (heightmapTexture)
-	{
+		m_Buffers = std::make_shared<engine::BufferGroup>();
 		m_Buffers->indexBuffer = CreateGeometryBuffer(m_Device, commandList, "IndexBuffer", vIndices.data(), vIndices.size() * sizeof(uint32_t), false);
 
 		uint64_t vertexBufferSize = 0;
@@ -103,22 +101,22 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 		commandList->setPermanentBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::VertexBuffer);
 		commandList->close();
 		m_Device->executeCommandList(commandList);
+
+		std::shared_ptr<engine::MeshGeometry> geometry = std::make_shared<engine::MeshGeometry>();
+		geometry->material = nullptr;
+		geometry->numIndices = vIndices.size();
+		geometry->numVertices = vPositions.size();
+
+		m_MeshInfo = std::make_shared<engine::MeshInfo>();
+		m_MeshInfo->name = "TerrainMesh";
+		m_MeshInfo->buffers = m_Buffers;
+		m_MeshInfo->objectSpaceBounds = math::box3(math::float3(-0.5f), math::float3(0.5f));;
+		m_MeshInfo->totalIndices = geometry->numIndices;
+		m_MeshInfo->totalVertices = geometry->numVertices;
+		m_MeshInfo->geometries.push_back(geometry);
+
+		m_MeshInstance = std::make_shared<engine::MeshInstance>(m_MeshInfo);
 	}
-
-	std::shared_ptr<engine::MeshGeometry> geometry = std::make_shared<engine::MeshGeometry>();
-	geometry->material = nullptr;
-	geometry->numIndices = vIndices.size();
-	geometry->numVertices = vPositions.size();
-
-	m_MeshInfo = std::make_shared<engine::MeshInfo>();
-	m_MeshInfo->name = "TerrainMesh";
-	m_MeshInfo->buffers = m_Buffers;
-	m_MeshInfo->objectSpaceBounds = math::box3(math::float3(-0.5f), math::float3(0.5f));;
-	m_MeshInfo->totalIndices = geometry->numIndices;
-	m_MeshInfo->totalVertices = geometry->numVertices;
-	m_MeshInfo->geometries.push_back(geometry);
-
-	m_MeshInstance = std::make_shared<engine::MeshInstance>(m_MeshInfo);
 }
 
 void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompositeView* compositeView, const engine::ICompositeView* compositeViewPrev, engine::FramebufferFactory& framebufferFactory)
