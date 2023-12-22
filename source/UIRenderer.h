@@ -8,6 +8,11 @@
 
 using namespace donut::app;
 
+struct UIData
+{
+	bool m_Wireframe = false;
+};
+
 class UIRenderer : public donut::app::ImGui_Renderer
 {
 private:
@@ -16,10 +21,13 @@ private:
 	ImFont* m_FontOpenSans = nullptr;
 	ImFont* m_FontDroidMono = nullptr;
 
+	UIData& m_UIData;
+
 public:
 
-	UIRenderer(donut::app::DeviceManager* deviceManager, std::shared_ptr<donut::vfs::IFileSystem> rootFS)
+	UIRenderer(donut::app::DeviceManager* deviceManager, std::shared_ptr<donut::vfs::IFileSystem> rootFS, UIData& uiData)
 		: ImGui_Renderer(deviceManager)
+		, m_UIData(uiData)
 	{
 		m_CommandList = GetDevice()->createCommandList();
 
@@ -37,6 +45,8 @@ public:
 		double frameTime = GetDeviceManager()->GetAverageFrameTimeSeconds();
 		if (frameTime > 0.0)
 			ImGui::Text("%.3f ms/frame (%.1f FPS)", frameTime * 1e3, 1.0 / frameTime);
+
+		ImGui::Checkbox("Wireframe", &m_UIData.m_Wireframe);
 
 		ImGui::End();
 	}

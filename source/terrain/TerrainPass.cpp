@@ -16,6 +16,8 @@ using namespace donut;
 TerrainPass::TerrainPass(nvrhi::IDevice* device)
 	: m_Device(device)
 {
+	m_QuadTree = std::make_shared<QuadTree>(1024.0f, 1024.0f);
+	m_QuadTree->Init();
 }
 
 void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture)
@@ -38,7 +40,46 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	std::vector<float3> vPositions;
 	std::vector<uint32_t> vIndices;
 	uint32_t vPositionsByteSize = 0;
-	if (heightmapTexture)
+	
+	const int sideSize = 64;
+	const int halfSize = sideSize / 2;
+	vPositions.resize(sideSize * sideSize);
+	vPositionsByteSize = sideSize * sideSize * sizeof(float3);
+
+	size_t index = 0;
+	for (int h = -halfSize; h < halfSize; h++)
+	{
+		for (int w = -halfSize; w < halfSize; w++)
+		{
+			assert(index < vPositions.size());
+			vPositions[index] = float3((float)w / halfSize, 1.0f, (float)h / halfSize);
+			vPositions[index] *= scale;
+			index++;
+		}
+	}
+
+	index = 0;
+	vIndices.resize((sideSize - 1) * (sideSize - 1) * 6);
+	for (int i = 0; i < sideSize - 1; i++)
+	{
+		for (int j = 0; j < sideSize - 1; j++)
+		{
+			uint32_t indexBottomLeft = i * sideSize + j;
+			uint32_t indexTopLeft = (i + 1) * sideSize + j;
+			uint32_t indexTopRight = (i + 1) * sideSize + j + 1;
+			uint32_t indexBottomRight = i * sideSize + j + 1;
+
+			vIndices[index++] = indexBottomLeft;
+			vIndices[index++] = indexTopLeft;
+			vIndices[index++] = indexTopRight;
+
+			vIndices[index++] = indexBottomLeft;
+			vIndices[index++] = indexTopRight;
+			vIndices[index++] = indexBottomRight;
+		}
+	}
+
+	if (false && heightmapTexture)
 	{
 		engine::TextureData* textureData = static_cast<engine::TextureData*>(heightmapTexture.get());
 
@@ -67,9 +108,9 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 
 		index = 0;
 		vIndices.resize((width - 1) * (height - 1) * 6);
-		for (size_t i = 0; i < height - 1; i++)
+		for (int i = 0; i < height - 1; i++)
 		{
-			for (size_t j = 0; j < width - 1; j++)
+			for (int j = 0; j < width - 1; j++)
 			{
 				uint32_t indexBottomLeft = i * height + j;
 				uint32_t indexTopLeft = (i + 1) * height + j;
@@ -85,43 +126,46 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 				vIndices[index++] = indexBottomRight;
 			}
 		}
-		commandList->open();
-
-		m_Buffers = std::make_shared<engine::BufferGroup>();
-		m_Buffers->indexBuffer = CreateGeometryBuffer(m_Device, commandList, "IndexBuffer", vIndices.data(), vIndices.size() * sizeof(uint32_t), false);
-
-		uint64_t vertexBufferSize = 0;
-		m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
-		m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
-		m_Buffers->vertexBuffer = CreateGeometryBuffer(m_Device, commandList, "VertexBuffer", nullptr, vertexBufferSize, true);
-
-		commandList->beginTrackingBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::CopyDest);
-		commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).byteOffset);
-		commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).byteOffset);
-		commandList->setPermanentBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::VertexBuffer);
-		commandList->close();
-		m_Device->executeCommandList(commandList);
-
-		std::shared_ptr<engine::MeshGeometry> geometry = std::make_shared<engine::MeshGeometry>();
-		geometry->material = nullptr;
-		geometry->numIndices = vIndices.size();
-		geometry->numVertices = vPositions.size();
-
-		m_MeshInfo = std::make_shared<engine::MeshInfo>();
-		m_MeshInfo->name = "TerrainMesh";
-		m_MeshInfo->buffers = m_Buffers;
-		m_MeshInfo->objectSpaceBounds = math::box3(math::float3(-0.5f), math::float3(0.5f));;
-		m_MeshInfo->totalIndices = geometry->numIndices;
-		m_MeshInfo->totalVertices = geometry->numVertices;
-		m_MeshInfo->geometries.push_back(geometry);
-
-		m_MeshInstance = std::make_shared<engine::MeshInstance>(m_MeshInfo);
 	}
+	commandList->open();
+
+	m_Buffers = std::make_shared<engine::BufferGroup>();
+	m_Buffers->indexBuffer = CreateGeometryBuffer(m_Device, commandList, "IndexBuffer", vIndices.data(), vIndices.size() * sizeof(uint32_t), false);
+
+	uint64_t vertexBufferSize = 0;
+	m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
+	m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
+	m_Buffers->vertexBuffer = CreateGeometryBuffer(m_Device, commandList, "VertexBuffer", nullptr, vertexBufferSize, true);
+
+	commandList->beginTrackingBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::CopyDest);
+	commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).byteOffset);
+	commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).byteOffset);
+	commandList->setPermanentBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::VertexBuffer);
+	commandList->close();
+	m_Device->executeCommandList(commandList);
+
+	std::shared_ptr<engine::MeshGeometry> geometry = std::make_shared<engine::MeshGeometry>();
+	geometry->material = nullptr;
+	geometry->numIndices = static_cast<uint32_t>(vIndices.size());
+	geometry->numVertices = static_cast<uint32_t>(vPositions.size());
+
+	m_MeshInfo = std::make_shared<engine::MeshInfo>();
+	m_MeshInfo->name = "TerrainMesh";
+	m_MeshInfo->buffers = m_Buffers;
+	m_MeshInfo->objectSpaceBounds = math::box3(math::float3(-0.5f) * scale, math::float3(0.5f) * scale);
+	m_MeshInfo->totalIndices = geometry->numIndices;
+	m_MeshInfo->totalVertices = geometry->numVertices;
+	m_MeshInfo->geometries.push_back(geometry);
+
+	m_MeshInstance = std::make_shared<engine::MeshInstance>(m_MeshInfo);
+	
 }
 
-void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompositeView* compositeView, const engine::ICompositeView* compositeViewPrev, engine::FramebufferFactory& framebufferFactory)
+void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompositeView* compositeView, const engine::ICompositeView* compositeViewPrev, engine::FramebufferFactory& framebufferFactory, bool wireframe)
 {
 	commandList->beginMarker("TerrainPass");
+
+	m_Wireframe = wireframe;
 
 	engine::ViewType::Enum supportedViewTypes = GetSupportedViewTypes();
 
@@ -137,6 +181,11 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		const engine::IView* viewPrev = compositeViewPrev ? compositeViewPrev->GetChildView(supportedViewTypes, viewIndex) : nullptr;
 
 		assert(view != nullptr);
+
+		m_QuadTree->ClearSelectedNodes();
+		m_QuadTree->NodeSelect(float2(view->GetViewOrigin().x, view->GetViewOrigin().z), m_QuadTree->GetRootNode().get(), QuadTree::NUM_LODS - 1, view->GetViewFrustum());
+
+		//m_QuadTree->PrintSelected();
 
 		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
 
@@ -201,6 +250,7 @@ bool TerrainPass::SetupMaterial(GeometryPassContext& context, const engine::Mate
 
 	PipelineKey key = terrainContext.keyTemplate;
 	key.bits.cullMode = cullMode;
+	key.bits.fillMode = m_Wireframe ? nvrhi::RasterFillMode::Wireframe : nvrhi::RasterFillMode::Fill;
 
 	nvrhi::GraphicsPipelineHandle& pipeline = m_Pipelines[key.value];
 
@@ -318,6 +368,7 @@ nvrhi::GraphicsPipelineHandle TerrainPass::CreateGraphicsPipeline(PipelineKey ke
 	pipelineDescs.PS = m_PixelShader;
 	pipelineDescs.renderState.rasterState.frontCounterClockwise = key.bits.frontCounterClockwise;
 	pipelineDescs.renderState.rasterState.setCullMode(key.bits.cullMode);
+	pipelineDescs.renderState.rasterState.setFillMode(key.bits.fillMode);
 	pipelineDescs.bindingLayouts = { m_ViewBindingLayout };
 	pipelineDescs.renderState.depthStencilState
 		.setDepthWriteEnable(true)
@@ -337,7 +388,7 @@ nvrhi::BufferHandle vRenderer::TerrainPass::CreateGeometryBuffer(nvrhi::IDevice*
 	desc.isVertexBuffer = isVertexBuffer;
 	desc.isIndexBuffer = !isVertexBuffer;
 	desc.debugName = debugName;
-	desc.initialState = nvrhi::ResourceStates::CopyDest;
+	//desc.initialState = nvrhi::ResourceStates::CopyDest;
 	bufHandle = device->createBuffer(desc);
 
 	if (data)

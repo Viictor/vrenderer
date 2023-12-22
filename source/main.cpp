@@ -16,10 +16,13 @@
 #include <donut/render/GeometryPasses.h>
 #include <donut/engine/FramebufferFactory.h>
 
+#include <donut/render/SkyPass.h>
+
 #include <donut/engine/SceneGraph.h>
 
 #include "UIRenderer.h"
 #include "terrain/TerrainPass.h"
+#include "terrain/QuadTree.h"
 
 using namespace donut;
 using namespace donut::math;
@@ -85,6 +88,9 @@ private:
     std::unique_ptr<render::DeferredLightingPass> m_DeferredLightingPass;
     std::shared_ptr<render::InstancedOpaqueDrawStrategy> m_OpaqueDrawStrategy;
 
+    std::unique_ptr<render::SkyPass> m_SkyPass;
+    std::shared_ptr<engine::DirectionalLight> m_DirectionalLigh;
+
     // Terrain Geometry Pass
     std::unique_ptr<vRenderer::TerrainPass> m_TerrainPass;
 
@@ -93,10 +99,13 @@ private:
 
     float m_Rotation = .0f;
 
+    UIData& m_UIData;
+
 public:
 
-	VRenderer(app::DeviceManager* deviceManager, const std::string& sceneName)
+	VRenderer(app::DeviceManager* deviceManager, const std::string& sceneName, UIData& uiData)
         : Super(deviceManager)
+        , m_UIData(uiData)
 	{
         std::filesystem::path mediaPath = app::GetDirectoryWithExecutable().parent_path() / "media";
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
@@ -117,6 +126,8 @@ public:
 
         m_DeferredLightingPass = std::make_unique<render::DeferredLightingPass>(GetDevice(), m_CommonPasses);
         m_DeferredLightingPass->Init(m_ShaderFactory);
+
+        m_DirectionalLigh = std::make_shared<engine::DirectionalLight>();
 
         m_CommandList = GetDevice()->createCommandList();
 
@@ -223,15 +234,11 @@ public:
         {
             std::shared_ptr<engine::SceneGraphNode> node = std::make_shared<engine::SceneGraphNode>();
             m_Scene->GetSceneGraph()->Attach(m_Scene->GetSceneGraph()->GetRootNode(), node);
-
-            std::shared_ptr<engine::DirectionalLight> directionalLight = std::make_shared<engine::DirectionalLight>();
-            node->SetLeaf(directionalLight);
-
-            directionalLight->SetName("Sun");
-            directionalLight->SetDirection(dm::double3(.1, -.4, .1));
-            directionalLight->angularSize = .53f;
-            directionalLight->irradiance = 2.0f;
-
+            node->SetLeaf(m_DirectionalLigh);
+            m_DirectionalLigh->SetName("Sun");
+            m_DirectionalLigh->SetDirection(dm::double3(.1, -.4, .1));
+            m_DirectionalLigh->angularSize = .53f;
+            m_DirectionalLigh->irradiance = 2.0f;
         }
     }
 
@@ -278,12 +285,16 @@ public:
             m_BindingCache->Clear();
             m_GBufferPass.reset();
             m_DeferredLightingPass->ResetBindingCache();
+            m_SkyPass.reset();
 
             m_RenderTargets = std::make_unique<RenderTargets>();
             m_RenderTargets->Init(GetDevice(), math::uint2(fbinfo.width, fbinfo.height), sampleCount, false, false);
         }
 
         SetupView();
+
+        if (!m_SkyPass)
+            m_SkyPass = std::make_unique<render::SkyPass>(GetDevice(), m_ShaderFactory, m_CommonPasses, m_RenderTargets->GBufferFramebuffer, m_View);
         
         if (!m_GBufferPass)
         {
@@ -298,6 +309,9 @@ public:
             m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
 
         m_RenderTargets->Clear(m_CommandList);
+
+
+        m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLigh, SkyParameters());
 
         render::GBufferFillPass::Context context;
 
@@ -320,7 +334,8 @@ public:
             m_CommandList,
             &m_View,
             &m_View,
-            *m_RenderTargets->GBufferFramebuffer);
+            *m_RenderTargets->GBufferFramebuffer,
+            m_UIData.m_Wireframe);
 
         if (m_Scene->GetSceneGraph().get())
         {
@@ -363,9 +378,9 @@ int main(int __argc, const char** __argv)
     }
 
     {
-
-        std::shared_ptr<VRenderer> vRenderer = std::make_shared<VRenderer>(deviceManager, "");
-        std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, vRenderer->GetRootFs());
+        UIData uiData;
+        std::shared_ptr<VRenderer> vRenderer = std::make_shared<VRenderer>(deviceManager, "", uiData);
+        std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, vRenderer->GetRootFs(), uiData);
 
         gui->Init(vRenderer->GetShaderFactory());
 

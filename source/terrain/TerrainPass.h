@@ -3,6 +3,7 @@
 #include <donut/engine/View.h>
 #include <donut/render/GeometryPasses.h>
 #include <mutex>
+#include "QuadTree.h"
 
 namespace donut::engine
 {
@@ -23,12 +24,13 @@ namespace vRenderer
 			struct
 			{
 				nvrhi::RasterCullMode cullMode : 2;
+				nvrhi::RasterFillMode fillMode : 2;
 				bool frontCounterClockwise : 1;
 				bool reverseDepth : 1;
 			} bits;
 			uint32_t value;
 
-			static constexpr size_t Count = 1 << 4;
+			static constexpr size_t Count = 1 << 6;
 		};
 
 		class Context : public GeometryPassContext
@@ -69,6 +71,9 @@ namespace vRenderer
 		nvrhi::GraphicsPipelineHandle m_Pipelines[PipelineKey::Count];
 		bool m_TrackLiveness = true;
 		std::mutex m_Mutex;
+		bool m_Wireframe = false;
+
+		std::shared_ptr<QuadTree> m_QuadTree;
 
 		// Terrain Geometry
 		std::shared_ptr<engine::BufferGroup> m_Buffers;
@@ -97,7 +102,8 @@ namespace vRenderer
 			nvrhi::ICommandList* commandList, 
 			const engine::ICompositeView* compositeView,
 			const engine::ICompositeView* compositeViewPrev,
-			engine::FramebufferFactory& framebufferFactory
+			engine::FramebufferFactory& framebufferFactory,
+			bool wireframe = false
 		);
 
 		// IGeometryPass implementation
@@ -108,5 +114,7 @@ namespace vRenderer
 		void SetPushConstants(GeometryPassContext& context, nvrhi::ICommandList* commandList, nvrhi::GraphicsState& state, nvrhi::DrawArguments& args) override { }
 
 		const engine::MeshInstance* GetMeshInstance() { return m_MeshInstance.get(); };
+
+		const std::shared_ptr<QuadTree>& const GetQuadTree() { return m_QuadTree; };
 	};
 }
