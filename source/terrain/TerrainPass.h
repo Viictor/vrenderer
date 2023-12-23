@@ -2,6 +2,7 @@
 
 #include <donut/engine/View.h>
 #include <donut/render/GeometryPasses.h>
+
 #include <mutex>
 #include "QuadTree.h"
 
@@ -10,6 +11,7 @@ namespace donut::engine
 	class ShaderFactory;
 	struct LoadedTexture;
 }
+
 
 using namespace donut;
 using namespace donut::render;
@@ -51,6 +53,12 @@ namespace vRenderer
 			uint32_t numConstantBufferVersions = 16;
 		};
 
+		struct RenderParams
+		{
+			bool wireframe = false;
+			bool lockView = false;
+		};
+
 	protected:
 		nvrhi::DeviceHandle m_Device;
 		nvrhi::InputLayoutHandle m_InputLayout;
@@ -71,14 +79,16 @@ namespace vRenderer
 		nvrhi::GraphicsPipelineHandle m_Pipelines[PipelineKey::Count];
 		bool m_TrackLiveness = true;
 		std::mutex m_Mutex;
-		bool m_Wireframe = false;
+		RenderParams m_RenderParams;
 
 		std::shared_ptr<QuadTree> m_QuadTree;
 
 		// Terrain Geometry
 		std::shared_ptr<engine::BufferGroup> m_Buffers;
 		std::shared_ptr<engine::MeshInfo> m_MeshInfo;
-		std::shared_ptr<engine::MeshInstance> m_MeshInstance;
+		
+		struct Resources;
+		std::shared_ptr<Resources> m_Resources;
 
 		nvrhi::InputLayoutHandle CreateInputLayout(nvrhi::IShader* vertexShader, const CreateParameters& params);
 		nvrhi::ShaderHandle CreateVertexShader(engine::ShaderFactory& shaderFactory, const CreateParameters& params);
@@ -94,6 +104,8 @@ namespace vRenderer
 
 		nvrhi::BufferHandle CreateGeometryBuffer(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, const char* debugName, const void* data, uint64_t dataSize, bool isVertexBuffer);
 
+		nvrhi::BufferHandle CreateInstanceBuffer(nvrhi::IDevice* device);
+
 	public:
 		TerrainPass(nvrhi::IDevice* device);
 
@@ -103,8 +115,10 @@ namespace vRenderer
 			const engine::ICompositeView* compositeView,
 			const engine::ICompositeView* compositeViewPrev,
 			engine::FramebufferFactory& framebufferFactory,
-			bool wireframe = false
+			const RenderParams& renderParams
 		);
+
+		void Update(nvrhi::ICommandList* commandList);
 
 		// IGeometryPass implementation
 		[[nodiscard]] engine::ViewType::Enum GetSupportedViewTypes() const override;
@@ -112,8 +126,6 @@ namespace vRenderer
 		bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state) override;
 		void SetupInputBuffers(GeometryPassContext& context, const engine::BufferGroup* buffers, nvrhi::GraphicsState& state) override;
 		void SetPushConstants(GeometryPassContext& context, nvrhi::ICommandList* commandList, nvrhi::GraphicsState& state, nvrhi::DrawArguments& args) override { }
-
-		const engine::MeshInstance* GetMeshInstance() { return m_MeshInstance.get(); };
 
 		const std::shared_ptr<QuadTree>& const GetQuadTree() { return m_QuadTree; };
 	};

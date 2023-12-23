@@ -96,7 +96,7 @@ void QuadTree::Split(Node* _Node, int _NumSplits)
 
 void QuadTree::InitLodRanges()
 {
-	float minLodDistance = 15.0f;
+	float minLodDistance = 1.0f;
 	for (int i = 0; i < NUM_LODS; i++)
 	{
 		m_LodRanges[i] = minLodDistance * pow(2, i);

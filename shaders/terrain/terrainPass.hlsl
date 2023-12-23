@@ -19,13 +19,18 @@ cbuffer c_Terrain : register(b1 VK_DESCRIPTOR_SET(1))
 
 void main_vs(
     in SceneVertex i_vtx,
+    in float3x4 i_instanceMatrix : TRANSFORM,
+    in uint i_instance : SV_InstanceID,
     out float4 o_position : SV_Position,
-    out SceneVertex o_vtx
+    out SceneVertex o_vtx,
+    out float3 o_location : LOCATION
 )
 {
     o_vtx = i_vtx;
     
-    float4 worldPos = float4(o_vtx.pos, 1.0);
+    o_location = transpose(i_instanceMatrix)[3].xyz;
+    
+    float4 worldPos = float4(mul(i_instanceMatrix, float4(i_vtx.pos, 1.0)), 1.0);
     float4 viewPos = mul(worldPos, c_Terrain.view.matWorldToView);
     o_position = mul(viewPos, c_Terrain.view.matViewToClip);
 }
@@ -33,6 +38,7 @@ void main_vs(
 void main_ps(
     in float4 i_position : SV_Position,
     in SceneVertex i_vtx,
+    in float3 i_location : LOCATION,
     out float4 o_channel0 : SV_Target0,
     out float4 o_channel1 : SV_Target1,
     out float4 o_channel2 : SV_Target2,
@@ -47,7 +53,8 @@ void main_ps(
     float3 dy = ddy(i_vtx.pos);
     float3 normal = -normalize(cross(dx, dy));
     
-    o_channel0.xyz = float3(i_vtx.pos.yyy / 20.f);
+    //o_channel0.xyz = float3(i_vtx.pos.yyy / 20.f);
+    o_channel0.xyz = float3(.3,.3,.3);
     o_channel0.w = 1.0;
     o_channel1.xyz = float3(0.0, 0.0, 0.0);
     o_channel1.w = 1.0;

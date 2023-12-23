@@ -18,8 +18,21 @@ struct Node
 
 	bool Intersects(float2 _Position, float _Radius) const
 	{
-		float nodeRadius = sqrtf(dot(m_Extents, m_Extents));
-		return length(m_Position - _Position) - nodeRadius <= _Radius;
+
+		float minDist = length(m_Position - _Position);
+		{
+			float2 vertPos0 = m_Position - m_Extents;
+			float2 vertPos1 = m_Position + m_Extents;
+			float2 vertPos2 = float2(m_Position.x + m_Extents.x, m_Position.y - m_Extents.y);
+			float2 vertPos3 = float2(m_Position.x - m_Extents.x, m_Position.y + m_Extents.y);
+
+			minDist = fminf(length(vertPos0 - _Position), minDist);
+			minDist = fminf(length(vertPos1 - _Position), minDist);
+			minDist = fminf(length(vertPos2 - _Position), minDist);
+			minDist = fminf(length(vertPos3 - _Position), minDist);
+		}
+
+		return minDist <= _Radius;
 	};
 
 	float2 m_Position;
@@ -35,7 +48,7 @@ struct Node
 class QuadTree
 {
 public:
-	static constexpr int NUM_LODS = 4;
+	static constexpr int NUM_LODS = 12;
 private:
 
 	std::unique_ptr<Node> m_RootNode;

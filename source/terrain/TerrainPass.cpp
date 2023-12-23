@@ -6,6 +6,7 @@
 #include <donut/engine/FramebufferFactory.h>
 #include <donut/core/vfs/VFS.h>
 #include <nvrhi/utils.h>
+#include <donut/shaders/bindless.h>
 
 using namespace donut::math;
 #include "../../shaders/terrain/terrain_cb.h"
@@ -13,16 +14,26 @@ using namespace donut::math;
 using namespace vRenderer;
 using namespace donut;
 
+#define MAX_INSTANCES 1024
+
+struct TerrainPass::Resources
+{
+	std::vector<InstanceData> instanceData;
+};
+
 TerrainPass::TerrainPass(nvrhi::IDevice* device)
 	: m_Device(device)
 {
 	m_QuadTree = std::make_shared<QuadTree>(1024.0f, 1024.0f);
 	m_QuadTree->Init();
+
+	m_Resources = std::make_shared<Resources>();
+	m_Resources->instanceData.resize((MAX_INSTANCES));
 }
 
 void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture)
 {
-	const float scale = 4.0f;
+	const float scale = 1.0f;
 
 	m_SupportedViewTypes = engine::ViewType::PLANAR;
 
@@ -41,18 +52,19 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	std::vector<uint32_t> vIndices;
 	uint32_t vPositionsByteSize = 0;
 	
-	const int sideSize = 64;
-	const int halfSize = sideSize / 2;
+	const int gridSize = 8;
+	const int sideSize = gridSize + 1;
+	const int halfSize = gridSize / 2;
 	vPositions.resize(sideSize * sideSize);
 	vPositionsByteSize = sideSize * sideSize * sizeof(float3);
 
 	size_t index = 0;
-	for (int h = -halfSize; h < halfSize; h++)
+	for (int h = -halfSize; h <= halfSize; h++)
 	{
-		for (int w = -halfSize; w < halfSize; w++)
+		for (int w = -halfSize; w <= halfSize; w++)
 		{
 			assert(index < vPositions.size());
-			vPositions[index] = float3((float)w / halfSize, 1.0f, (float)h / halfSize);
+			vPositions[index] = float3((float)w / halfSize, 0.0f, (float)h / halfSize);
 			vPositions[index] *= scale;
 			index++;
 		}
@@ -130,6 +142,8 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	commandList->open();
 
 	m_Buffers = std::make_shared<engine::BufferGroup>();
+	m_Buffers->instanceBuffer = CreateInstanceBuffer(m_Device);
+
 	m_Buffers->indexBuffer = CreateGeometryBuffer(m_Device, commandList, "IndexBuffer", vIndices.data(), vIndices.size() * sizeof(uint32_t), false);
 
 	uint64_t vertexBufferSize = 0;
@@ -156,16 +170,13 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	m_MeshInfo->totalIndices = geometry->numIndices;
 	m_MeshInfo->totalVertices = geometry->numVertices;
 	m_MeshInfo->geometries.push_back(geometry);
-
-	m_MeshInstance = std::make_shared<engine::MeshInstance>(m_MeshInfo);
-	
 }
 
-void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompositeView* compositeView, const engine::ICompositeView* compositeViewPrev, engine::FramebufferFactory& framebufferFactory, bool wireframe)
+void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompositeView* compositeView, const engine::ICompositeView* compositeViewPrev, engine::FramebufferFactory& framebufferFactory, const RenderParams& renderParams)
 {
 	commandList->beginMarker("TerrainPass");
 
-	m_Wireframe = wireframe;
+	m_RenderParams = renderParams;
 
 	engine::ViewType::Enum supportedViewTypes = GetSupportedViewTypes();
 
@@ -182,13 +193,19 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 		assert(view != nullptr);
 
-		m_QuadTree->ClearSelectedNodes();
-		m_QuadTree->NodeSelect(float2(view->GetViewOrigin().x, view->GetViewOrigin().z), m_QuadTree->GetRootNode().get(), QuadTree::NUM_LODS - 1, view->GetViewFrustum());
+		if (!m_RenderParams.lockView)
+		{
+			m_QuadTree->ClearSelectedNodes();
+			m_QuadTree->NodeSelect(float2(view->GetViewOrigin().x, view->GetViewOrigin().z), m_QuadTree->GetRootNode().get(), QuadTree::NUM_LODS - 1, view->GetViewFrustum());
 
+			Update(commandList);
+		}
 		//m_QuadTree->PrintSelected();
 
 		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
 
+		auto nodes = m_QuadTree->GetSelectedNodes();
+		//for (int i = 0; i < nodes.size(); i++)
 		{
 			Context passContext;
 			SetupView(passContext, commandList, view, viewPrev);
@@ -210,9 +227,9 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 				nvrhi::DrawArguments args;
 				args.vertexCount = m_MeshInfo->geometries[0]->numIndices;
-				args.instanceCount = 1;
+				args.instanceCount = nodes.size();
 				args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
-				args.startInstanceLocation = m_MeshInstance->GetInstanceIndex();
+				args.startInstanceLocation = 0;// m_MeshInstance->GetInstanceIndex();
 
 				args.startIndexLocation = m_MeshInfo->indexOffset + m_MeshInfo->geometries[0]->indexOffsetInMesh;
 				
@@ -224,6 +241,29 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 	}
 
 	commandList->endMarker();
+}
+
+void vRenderer::TerrainPass::Update(nvrhi::ICommandList* commandList)
+{
+	// Update Instances
+	auto nodes = m_QuadTree->GetSelectedNodes();
+	for (int i = 0; i < nodes.size(); i++)
+	{
+		const Node* node = nodes[i];
+		InstanceData& idata = m_Resources->instanceData[i];
+
+		math::affine3 scale = math::scaling(float3(node->m_Extents.x, 1.0f, node->m_Extents.y));
+		math::affine3 translation = math::translation(float3(node->m_Position.x, 0.0f, node->m_Position.y));
+		math::affine3 transform = scale * translation;
+
+		affineToColumnMajor(transform, idata.transform);
+		idata.firstGeometryInstanceIndex = 0;
+		idata.firstGeometryIndex = 0;
+		idata.numGeometries = 1;
+		idata.padding = 0u;
+	}
+
+	commandList->writeBuffer(m_Buffers->instanceBuffer, m_Resources->instanceData.data(), m_Resources->instanceData.size() * sizeof(InstanceData));
 }
 
 engine::ViewType::Enum TerrainPass::GetSupportedViewTypes() const
@@ -250,7 +290,7 @@ bool TerrainPass::SetupMaterial(GeometryPassContext& context, const engine::Mate
 
 	PipelineKey key = terrainContext.keyTemplate;
 	key.bits.cullMode = cullMode;
-	key.bits.fillMode = m_Wireframe ? nvrhi::RasterFillMode::Wireframe : nvrhi::RasterFillMode::Fill;
+	key.bits.fillMode = m_RenderParams.wireframe ? nvrhi::RasterFillMode::Wireframe : nvrhi::RasterFillMode::Fill;
 
 	nvrhi::GraphicsPipelineHandle& pipeline = m_Pipelines[key.value];
 
@@ -278,6 +318,7 @@ void TerrainPass::SetupInputBuffers(GeometryPassContext& context, const engine::
 	state.vertexBuffers = {
 		{buffers->vertexBuffer, 0, buffers->getVertexBufferRange(engine::VertexAttribute::Position).byteOffset },
 		{buffers->vertexBuffer, 1, buffers->getVertexBufferRange(engine::VertexAttribute::Normal).byteOffset },
+		{buffers->instanceBuffer, 2, 0 },
 	};
 
 	state.indexBuffer = { buffers->indexBuffer, nvrhi::Format::R32_UINT, 0 };
@@ -288,10 +329,11 @@ nvrhi::InputLayoutHandle TerrainPass::CreateInputLayout(nvrhi::IShader* vertexSh
 	const nvrhi::VertexAttributeDesc inputDescs[] =
 	{
 		engine::GetVertexAttributeDesc(engine::VertexAttribute::Position, "POS", 0),
-		engine::GetVertexAttributeDesc(engine::VertexAttribute::Normal, "NORMAL", 1)
+		engine::GetVertexAttributeDesc(engine::VertexAttribute::Normal, "NORMAL", 1),
+		engine::GetVertexAttributeDesc(engine::VertexAttribute::Transform, "TRANSFORM", 2)
 	};
 
-	return m_Device->createInputLayout(inputDescs, uint32_t(std::size(inputDescs)), vertexShader);
+	return m_Device->createInputLayout(inputDescs, dim(inputDescs), vertexShader);
 }
 
 nvrhi::ShaderHandle TerrainPass::CreateVertexShader(engine::ShaderFactory& shaderFactory, const CreateParameters& params)
@@ -379,7 +421,7 @@ nvrhi::GraphicsPipelineHandle TerrainPass::CreateGraphicsPipeline(PipelineKey ke
 	return m_Device->createGraphicsPipeline(pipelineDescs, framebuffer);
 }
 
-nvrhi::BufferHandle vRenderer::TerrainPass::CreateGeometryBuffer(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, const char* debugName, const void* data, uint64_t dataSize, bool isVertexBuffer)
+nvrhi::BufferHandle TerrainPass::CreateGeometryBuffer(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, const char* debugName, const void* data, uint64_t dataSize, bool isVertexBuffer)
 {
 	nvrhi::BufferHandle bufHandle;
 
@@ -399,4 +441,19 @@ nvrhi::BufferHandle vRenderer::TerrainPass::CreateGeometryBuffer(nvrhi::IDevice*
 	}
 
 	return bufHandle;
+}
+
+nvrhi::BufferHandle TerrainPass::CreateInstanceBuffer(nvrhi::IDevice* device)
+{
+	nvrhi::BufferDesc bufferDesc;
+	bufferDesc.byteSize = sizeof(InstanceData) * m_Resources->instanceData.size();
+	bufferDesc.debugName = "Instances";
+	bufferDesc.structStride = /*m_EnableBindlessResources*/true ? sizeof(InstanceData) : 0;
+	bufferDesc.canHaveRawViews = true;
+	bufferDesc.canHaveUAVs = true;
+	bufferDesc.isVertexBuffer = true;
+	bufferDesc.initialState = nvrhi::ResourceStates::ShaderResource;
+	bufferDesc.keepInitialState = true;
+
+	return device->createBuffer(bufferDesc);
 }

@@ -330,12 +330,16 @@ public:
                 true);
         }
 
+        vRenderer::TerrainPass::RenderParams renderParams;
+        renderParams.wireframe = m_UIData.m_Wireframe;
+        renderParams.lockView = m_UIData.m_LockView;
+
         m_TerrainPass->Render(
             m_CommandList,
             &m_View,
             &m_View,
             *m_RenderTargets->GBufferFramebuffer,
-            m_UIData.m_Wireframe);
+            renderParams);
 
         if (m_Scene->GetSceneGraph().get())
         {

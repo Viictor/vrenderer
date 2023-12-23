@@ -11,6 +11,7 @@ using namespace donut::app;
 struct UIData
 {
 	bool m_Wireframe = false;
+	bool m_LockView = false;
 };
 
 class UIRenderer : public donut::app::ImGui_Renderer
@@ -47,6 +48,7 @@ public:
 			ImGui::Text("%.3f ms/frame (%.1f FPS)", frameTime * 1e3, 1.0 / frameTime);
 
 		ImGui::Checkbox("Wireframe", &m_UIData.m_Wireframe);
+		ImGui::Checkbox("Lock View", &m_UIData.m_LockView);
 
 		ImGui::End();
 	}
