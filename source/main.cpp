@@ -132,10 +132,11 @@ public:
         m_CommandList = GetDevice()->createCommandList();
 
 
-        std::filesystem::path textureFileName ="/media/heightmap.png";
+        std::filesystem::path textureFileName ="/media/Heightmap_01_Mountain.png";
         std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
 
-        m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice());
+        m_UIData.m_MaxHeight = 20.0f;
+        m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice(), m_CommonPasses, m_UIData);
         m_TerrainPass->Init(*m_ShaderFactory, vRenderer::TerrainPass::CreateParameters(), m_CommandList, heightmapTexture);
 
         std::filesystem::path scenePath = "/media/glTF-Sample-Models/2.0";
@@ -148,8 +149,8 @@ public:
         }
 
 
-        //if (sceneName.empty())
-        //    SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "Sponza.gltf"));
+        /*if (sceneName.empty())
+            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "Sponza.gltf"));*/
         //else
         //    SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, sceneName));
 
@@ -161,7 +162,7 @@ public:
             //m_Scene->GetSceneGraph()->SetRootNode(node);
         }
 
-        m_FirstPersonCamera.LookAt(float3(.0f, 1.8f, .0f), float3(1.0f, 1.8f, .0f));
+        m_FirstPersonCamera.LookAt(float3(.0f, 20.8f, .0f), float3(1.0f, 1.8f, .0f));
         m_FirstPersonCamera.SetMoveSpeed(3.0f);
 	}
 

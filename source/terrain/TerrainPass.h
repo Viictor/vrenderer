@@ -10,8 +10,10 @@ namespace donut::engine
 {
 	class ShaderFactory;
 	struct LoadedTexture;
+	class CommonRenderPasses;
 }
 
+struct UIData;
 
 using namespace donut;
 using namespace donut::render;
@@ -69,6 +71,10 @@ namespace vRenderer
 		nvrhi::BindingLayoutHandle m_ViewBindingLayout;
 		nvrhi::BindingSetHandle m_ViewBindingSet;
 
+		nvrhi::BindingLayoutHandle m_HeightmapBindingLayout;
+		nvrhi::BindingSetHandle m_HeightmapBindingSet;
+		size_t m_HeightmapBindingSetHash = 0;
+
 		nvrhi::BindingLayoutHandle m_LightBindingLayout;
 
 		engine::ViewType::Enum m_SupportedViewTypes = engine::ViewType::PLANAR;
@@ -80,6 +86,7 @@ namespace vRenderer
 		bool m_TrackLiveness = true;
 		std::mutex m_Mutex;
 		RenderParams m_RenderParams;
+		UIData& m_UIData;
 
 		std::shared_ptr<QuadTree> m_QuadTree;
 
@@ -89,6 +96,7 @@ namespace vRenderer
 		
 		struct Resources;
 		std::shared_ptr<Resources> m_Resources;
+		std::shared_ptr<engine::CommonRenderPasses> m_CommonPasses;
 
 		nvrhi::InputLayoutHandle CreateInputLayout(nvrhi::IShader* vertexShader, const CreateParameters& params);
 		nvrhi::ShaderHandle CreateVertexShader(engine::ShaderFactory& shaderFactory, const CreateParameters& params);
@@ -96,6 +104,9 @@ namespace vRenderer
 
 		nvrhi::BindingLayoutHandle CreateViewBindingLayout();
 		nvrhi::BindingSetHandle CreateViewBindingSet();
+
+		nvrhi::BindingLayoutHandle CreateHeightmapBindingLayout();
+		nvrhi::BindingSetHandle GetOrCreateHeightmapBindingSet();
 
 		nvrhi::BindingLayoutHandle CreateLightBindingLayout();
 		nvrhi::BindingSetHandle CreateLightBindingSet(nvrhi::ITexture* shadowMapTexture, nvrhi::ITexture* diffuse, nvrhi::ITexture* specular, nvrhi::ITexture* environmentBrdf);
@@ -107,7 +118,7 @@ namespace vRenderer
 		nvrhi::BufferHandle CreateInstanceBuffer(nvrhi::IDevice* device);
 
 	public:
-		TerrainPass(nvrhi::IDevice* device);
+		TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData);
 
 		void Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture);
 		void Render(

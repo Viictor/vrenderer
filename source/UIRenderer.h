@@ -10,8 +10,9 @@ using namespace donut::app;
 
 struct UIData
 {
-	bool m_Wireframe = false;
+	bool m_Wireframe = true;
 	bool m_LockView = false;
+	float m_MaxHeight = 10.0f;
 };
 
 class UIRenderer : public donut::app::ImGui_Renderer
@@ -49,6 +50,8 @@ public:
 
 		ImGui::Checkbox("Wireframe", &m_UIData.m_Wireframe);
 		ImGui::Checkbox("Lock View", &m_UIData.m_LockView);
+
+		ImGui::InputFloat("Max Height", &m_UIData.m_MaxHeight, 1.0);
 
 		ImGui::End();
 	}

@@ -4,9 +4,12 @@
 #include <donut/engine/SceneGraph.h>
 #include <donut/engine/TextureCache.h>
 #include <donut/engine/FramebufferFactory.h>
+#include <donut/engine/CommonRenderPasses.h>
 #include <donut/core/vfs/VFS.h>
 #include <nvrhi/utils.h>
 #include <donut/shaders/bindless.h>
+
+#include "../UIRenderer.h"
 
 using namespace donut::math;
 #include "../../shaders/terrain/terrain_cb.h"
@@ -14,18 +17,22 @@ using namespace donut::math;
 using namespace vRenderer;
 using namespace donut;
 
-#define MAX_INSTANCES 1024
+#define MAX_INSTANCES 4096
+#define WORLD_SIZE 64.0f
+#define GRID_SIZE 16
 
 struct TerrainPass::Resources
 {
 	std::vector<InstanceData> instanceData;
+	std::shared_ptr<engine::LoadedTexture> heightmapTexture;
 };
 
-TerrainPass::TerrainPass(nvrhi::IDevice* device)
+TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData)
 	: m_Device(device)
+	, m_CommonPasses(std::move(commonPasses))
+	, m_UIData(uiData)
 {
-	m_QuadTree = std::make_shared<QuadTree>(1024.0f, 1024.0f);
-	m_QuadTree->Init();
+	m_QuadTree = std::make_shared<QuadTree>(WORLD_SIZE, WORLD_SIZE);
 
 	m_Resources = std::make_shared<Resources>();
 	m_Resources->instanceData.resize((MAX_INSTANCES));
@@ -52,9 +59,8 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	std::vector<uint32_t> vIndices;
 	uint32_t vPositionsByteSize = 0;
 	
-	const int gridSize = 8;
-	const int sideSize = gridSize + 1;
-	const int halfSize = gridSize / 2;
+	const int sideSize = GRID_SIZE + 1;
+	const int halfSize = GRID_SIZE / 2;
 	vPositions.resize(sideSize * sideSize);
 	vPositionsByteSize = sideSize * sideSize * sizeof(float3);
 
@@ -91,54 +97,11 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 		}
 	}
 
-	if (false && heightmapTexture)
-	{
-		engine::TextureData* textureData = static_cast<engine::TextureData*>(heightmapTexture.get());
+	m_Resources->heightmapTexture = heightmapTexture;
+	m_HeightmapBindingLayout = CreateHeightmapBindingLayout();
+	engine::TextureData* textureData = static_cast<engine::TextureData*>(m_Resources->heightmapTexture.get());
+	m_QuadTree->Init(textureData);
 
-		const int width = textureData->width;
-		const int height = textureData->height;
-
-		//const int side = (int)sqrtf((float)textureData->dataLayout[0][0].dataSize / sizeof(float));
-		vPositions.resize(width * height);
-		vPositionsByteSize = width * height * sizeof(float3);
-
-		const int halfWidth = width / 2;
-		const int halfHeight = height / 2;
-		const uint8_t* byteData = reinterpret_cast<const uint8_t*>(textureData->data->data());
-
-		size_t index = 0;
-		for (int h = -halfHeight; h < halfHeight; h++)
-		{
-			for (int w = -halfWidth; w < halfWidth; w++)
-			{
-				assert(index < vPositions.size());
-				vPositions[index] = float3((float)w / halfWidth, (float)byteData[index * 4] / 255.0f, (float)h / halfHeight);
-				vPositions[index] *= scale;
-				index++;
-			}
-		}
-
-		index = 0;
-		vIndices.resize((width - 1) * (height - 1) * 6);
-		for (int i = 0; i < height - 1; i++)
-		{
-			for (int j = 0; j < width - 1; j++)
-			{
-				uint32_t indexBottomLeft = i * height + j;
-				uint32_t indexTopLeft = (i + 1) * height + j;
-				uint32_t indexTopRight = (i + 1) * height + j + 1;
-				uint32_t indexBottomRight = i * height + j + 1;
-
-				vIndices[index++] = indexBottomLeft;
-				vIndices[index++] = indexTopLeft;
-				vIndices[index++] = indexTopRight;
-
-				vIndices[index++] = indexBottomLeft;
-				vIndices[index++] = indexTopRight;
-				vIndices[index++] = indexBottomRight;
-			}
-		}
-	}
 	commandList->open();
 
 	m_Buffers = std::make_shared<engine::BufferGroup>();
@@ -196,7 +159,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		if (!m_RenderParams.lockView)
 		{
 			m_QuadTree->ClearSelectedNodes();
-			m_QuadTree->NodeSelect(float2(view->GetViewOrigin().x, view->GetViewOrigin().z), m_QuadTree->GetRootNode().get(), QuadTree::NUM_LODS - 1, view->GetViewFrustum());
+			m_QuadTree->NodeSelect(float2(view->GetViewOrigin().x, view->GetViewOrigin().z), m_QuadTree->GetRootNode().get(), m_QuadTree->GetNumLods() - 1, view->GetViewFrustum());
 
 			Update(commandList);
 		}
@@ -205,6 +168,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
 
 		auto nodes = m_QuadTree->GetSelectedNodes();
+		assert(int(nodes.size()) < MAX_INSTANCES);
 		//for (int i = 0; i < nodes.size(); i++)
 		{
 			Context passContext;
@@ -247,6 +211,8 @@ void vRenderer::TerrainPass::Update(nvrhi::ICommandList* commandList)
 {
 	// Update Instances
 	auto nodes = m_QuadTree->GetSelectedNodes();
+	assert(int(nodes.size()) < MAX_INSTANCES);
+
 	for (int i = 0; i < nodes.size(); i++)
 	{
 		const Node* node = nodes[i];
@@ -278,6 +244,8 @@ void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* c
 	TerrainViewConstants viewConstants = {};
 	view->FillPlanarViewConstants(viewConstants.view);
 	viewPrev->FillPlanarViewConstants(viewConstants.viewPrev);
+	viewConstants.size = WORLD_SIZE;
+	viewConstants.maxHeight = m_UIData.m_MaxHeight;
 	commandList->writeBuffer(m_TerrainViewPassCB, &viewConstants, sizeof(viewConstants));
 
 	terrainContext.keyTemplate.bits.frontCounterClockwise = view->IsMirrored();
@@ -307,8 +275,10 @@ bool TerrainPass::SetupMaterial(GeometryPassContext& context, const engine::Mate
 
 	assert(pipeline->getFramebufferInfo() == state.framebuffer->getFramebufferInfo());
 
+	m_HeightmapBindingSet = GetOrCreateHeightmapBindingSet();
+	
 	state.pipeline = pipeline;
-	state.bindings = { m_ViewBindingSet };
+	state.bindings = { m_ViewBindingSet, m_HeightmapBindingSet };
 
 	return true;
 }
@@ -374,6 +344,38 @@ nvrhi::BindingSetHandle TerrainPass::CreateViewBindingSet()
 	return m_Device->createBindingSet(bindingSetDescs, m_ViewBindingLayout);
 }
 
+nvrhi::BindingLayoutHandle vRenderer::TerrainPass::CreateHeightmapBindingLayout()
+{
+	nvrhi::BindingLayoutDesc heightmapLayoutDescs;
+	heightmapLayoutDescs.visibility = nvrhi::ShaderType::Vertex;
+	heightmapLayoutDescs.bindings = {
+		nvrhi::BindingLayoutItem::Texture_SRV(0),
+		nvrhi::BindingLayoutItem::Sampler(0)
+	};
+
+	return m_Device->createBindingLayout(heightmapLayoutDescs);
+}
+
+nvrhi::BindingSetHandle vRenderer::TerrainPass::GetOrCreateHeightmapBindingSet()
+{
+	nvrhi::BindingSetDesc bindingSetDescs;
+	bindingSetDescs.bindings = {
+		nvrhi::BindingSetItem::Texture_SRV(0, m_Resources->heightmapTexture->texture ? m_Resources->heightmapTexture->texture : m_CommonPasses->m_BlackTexture, nvrhi::Format::UNKNOWN),
+		nvrhi::BindingSetItem::Sampler(0, m_CommonPasses->m_LinearWrapSampler)
+	};
+
+	size_t hash = 0;
+	nvrhi::hash_combine(hash, bindingSetDescs);
+
+	if (m_HeightmapBindingSetHash != hash)
+	{
+		m_HeightmapBindingSetHash = hash;
+		return m_Device->createBindingSet(bindingSetDescs, m_HeightmapBindingLayout);
+	}
+	else
+		return m_HeightmapBindingSet;
+}
+
 nvrhi::BindingLayoutHandle TerrainPass::CreateLightBindingLayout()
 {
 	// to do when shadowmaps
@@ -411,7 +413,7 @@ nvrhi::GraphicsPipelineHandle TerrainPass::CreateGraphicsPipeline(PipelineKey ke
 	pipelineDescs.renderState.rasterState.frontCounterClockwise = key.bits.frontCounterClockwise;
 	pipelineDescs.renderState.rasterState.setCullMode(key.bits.cullMode);
 	pipelineDescs.renderState.rasterState.setFillMode(key.bits.fillMode);
-	pipelineDescs.bindingLayouts = { m_ViewBindingLayout };
+	pipelineDescs.bindingLayouts = { m_ViewBindingLayout, m_HeightmapBindingLayout };
 	pipelineDescs.renderState.depthStencilState
 		.setDepthWriteEnable(true)
 		.setDepthFunc(key.bits.reverseDepth 

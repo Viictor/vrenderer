@@ -8,6 +8,8 @@ struct TerrainViewConstants
 {
 	PlanarViewConstants view;
 	PlanarViewConstants viewPrev;
+	float size;
+	float maxHeight;
 };
 
 struct TerrainLightConstants

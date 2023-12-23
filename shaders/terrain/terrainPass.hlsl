@@ -17,6 +17,9 @@ cbuffer c_Terrain : register(b1 VK_DESCRIPTOR_SET(1))
     TerrainViewConstants c_Terrain;
 };
 
+Texture2D t_Heightmap : register(t0);
+SamplerState s_HeightmapSampler : register(s0);
+
 void main_vs(
     in SceneVertex i_vtx,
     in float3x4 i_instanceMatrix : TRANSFORM,
@@ -28,11 +31,19 @@ void main_vs(
 {
     o_vtx = i_vtx;
     
-    o_location = transpose(i_instanceMatrix)[3].xyz;
+    float4 uv = float4(mul(i_instanceMatrix, float4(i_vtx.pos.x, 0, i_vtx.pos.z, 1.0)), 1.0);
+    const float halfSize = c_Terrain.size * 0.5;
+    uv = (uv + halfSize) / c_Terrain.size;
     
-    float4 worldPos = float4(mul(i_instanceMatrix, float4(i_vtx.pos, 1.0)), 1.0);
+    float height = t_Heightmap.SampleLevel(s_HeightmapSampler, uv.xz, 0).r * c_Terrain.maxHeight;
+    float4 worldPos = float4(mul(i_instanceMatrix, float4(i_vtx.pos.x, height, i_vtx.pos.z, 1.0)), 1.0);
+    
+    o_vtx.pos = worldPos.xyz;
+    
     float4 viewPos = mul(worldPos, c_Terrain.view.matWorldToView);
     o_position = mul(viewPos, c_Terrain.view.matViewToClip);
+
+    o_location = float3(height, height, height) / c_Terrain.maxHeight;
 }
 
 void main_ps(
@@ -54,7 +65,7 @@ void main_ps(
     float3 normal = -normalize(cross(dx, dy));
     
     //o_channel0.xyz = float3(i_vtx.pos.yyy / 20.f);
-    o_channel0.xyz = float3(.3,.3,.3);
+    o_channel0.xyz = float3(i_location);
     o_channel0.w = 1.0;
     o_channel1.xyz = float3(0.0, 0.0, 0.0);
     o_channel1.w = 1.0;

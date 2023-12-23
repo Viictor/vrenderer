@@ -2,8 +2,12 @@
 
 #include <donut/core/log.h>
 
-void QuadTree::Init()
+void QuadTree::Init(engine::TextureData* textureData)
 {
+	m_TextureData = textureData;
+
+	m_NumLods = min(MAX_LODS, int(sqrt(m_Width))) + 1;
+
 	m_RootNode = std::make_unique<Node>(float2(0.0f, 0.0f), float2(m_Width / 2.0f, m_Height / 2.0f));
 
 	int numSplits = 1;
@@ -27,7 +31,7 @@ void QuadTree::Print(const Node* _Node, int _level)
 	}
 }
 
-void QuadTree::PrintSelected()
+void QuadTree::PrintSelected() const
 {
 	auto nodes = GetSelectedNodes();
 	log::info("Selected Nodes");
@@ -45,8 +49,8 @@ bool QuadTree::NodeSelect(const float2 _Position, const Node* _Node, int _LodLev
 	float3 min = float3(_Node->m_Position.x - _Node->m_Extents.x, 0.0f, _Node->m_Position.y - _Node->m_Extents.y);
 	float3 max = float3(_Node->m_Position.x + _Node->m_Extents.x, 0.0f, _Node->m_Position.y + _Node->m_Extents.y);
 	
-	if (!_Frustum.intersectsWith(box3(min, max)))
-		return true; // Node out of frustum - return true to prevent parent from being selected
+	//if (!_Frustum.intersectsWith(box3(min, max)))
+	//	return true; // Node out of frustum - return true to prevent parent from being selected
 
 	if (_LodLevel == 0) // Add leaf nodes
 	{
@@ -85,7 +89,7 @@ void QuadTree::Split(Node* _Node, int _NumSplits)
 
 	_NumSplits++;
 
-	if (_NumSplits < NUM_LODS)
+	if (_NumSplits < m_NumLods)
 	{
 		for (int i = 0; i < 4; i++)
 		{
@@ -97,7 +101,7 @@ void QuadTree::Split(Node* _Node, int _NumSplits)
 void QuadTree::InitLodRanges()
 {
 	float minLodDistance = 1.0f;
-	for (int i = 0; i < NUM_LODS; i++)
+	for (int i = 0; i < MAX_LODS; i++)
 	{
 		m_LodRanges[i] = minLodDistance * pow(2, i);
 	}
