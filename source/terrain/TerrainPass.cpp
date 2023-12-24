@@ -155,7 +155,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		if (!m_RenderParams.lockView)
 		{
 			m_QuadTree->ClearSelectedNodes();
-			m_QuadTree->NodeSelect(float2(view->GetViewOrigin().x, view->GetViewOrigin().z), m_QuadTree->GetRootNode().get(), m_QuadTree->GetNumLods() - 1, view->GetViewFrustum());
+			m_QuadTree->NodeSelect(float3(view->GetViewOrigin()), m_QuadTree->GetRootNode().get(), m_QuadTree->GetNumLods() - 1, view->GetViewFrustum(), m_UIData.m_MaxHeight);
 
 			Update(commandList);
 		}
@@ -213,8 +213,8 @@ void vRenderer::TerrainPass::Update(nvrhi::ICommandList* commandList)
 		const Node* node = nodes[i];
 		InstanceData& idata = m_Resources->instanceData[i];
 
-		math::affine3 scale = math::scaling(float3(node->m_Extents.x, 1.0f, node->m_Extents.y));
-		math::affine3 translation = math::translation(float3(node->m_Position.x, 0.0f, node->m_Position.y));
+		math::affine3 scale = math::scaling(node->m_Extents);
+		math::affine3 translation = math::translation(node->m_Position);
 		math::affine3 transform = scale * translation;
 
 		affineToColumnMajor(transform, idata.transform);
