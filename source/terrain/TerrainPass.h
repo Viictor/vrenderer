@@ -81,6 +81,7 @@ namespace vRenderer
 
 		nvrhi::BufferHandle m_TerrainViewPassCB;
 		nvrhi::BufferHandle m_TerrainLightPassCB;
+		nvrhi::BufferHandle m_TerrainParamsPassCB;
 
 		nvrhi::GraphicsPipelineHandle m_Pipelines[PipelineKey::Count];
 		bool m_TrackLiveness = true;

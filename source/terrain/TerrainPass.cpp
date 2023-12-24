@@ -50,6 +50,7 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 
 	m_TerrainViewPassCB = m_Device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(TerrainViewConstants), "TerrainViewConstants", params.numConstantBufferVersions));
 	m_TerrainLightPassCB = m_Device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(TerrainLightConstants), "TerrainLightConstants", params.numConstantBufferVersions));
+	m_TerrainParamsPassCB = m_Device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(TerrainParamsConstants), "TerrainParamsConstants", params.numConstantBufferVersions));
 
 	m_ViewBindingLayout = CreateViewBindingLayout();
 	m_ViewBindingSet = CreateViewBindingSet();
@@ -183,7 +184,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 			SetupInputBuffers(passContext, m_Buffers.get(), graphicsState);
 
-			const bool drawMaterial = SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::Back, graphicsState);
+			const bool drawMaterial = SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::None, graphicsState);
 
 			if (drawMaterial)
 			{
@@ -244,9 +245,18 @@ void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* c
 	TerrainViewConstants viewConstants = {};
 	view->FillPlanarViewConstants(viewConstants.view);
 	viewPrev->FillPlanarViewConstants(viewConstants.viewPrev);
-	viewConstants.size = WORLD_SIZE;
-	viewConstants.maxHeight = m_UIData.m_MaxHeight;
+
+	TerrainParamsConstants paramsConstants = {};
+	paramsConstants.size = WORLD_SIZE;
+	paramsConstants.maxHeight = m_UIData.m_MaxHeight;
+
+	auto lodRanges = m_QuadTree->GetLodRanges();
+	for (int i = 0; i < lodRanges.size(); i++)
+	{
+		paramsConstants.lodRanges[i].x = lodRanges[i];
+	}
 	commandList->writeBuffer(m_TerrainViewPassCB, &viewConstants, sizeof(viewConstants));
+	commandList->writeBuffer(m_TerrainParamsPassCB, &paramsConstants, sizeof(paramsConstants));
 
 	terrainContext.keyTemplate.bits.frontCounterClockwise = view->IsMirrored();
 	terrainContext.keyTemplate.bits.reverseDepth = view->IsReverseDepth();
@@ -326,7 +336,7 @@ nvrhi::BindingLayoutHandle TerrainPass::CreateViewBindingLayout()
 	viewLayoutDescs.visibility = nvrhi::ShaderType::All;
 	viewLayoutDescs.bindings = {
 		nvrhi::BindingLayoutItem::VolatileConstantBuffer(1),
-		//nvrhi::BindingLayoutItem::VolatileConstantBuffer(2),
+		nvrhi::BindingLayoutItem::VolatileConstantBuffer(2),
 	};
 
 	return m_Device->createBindingLayout(viewLayoutDescs);
@@ -337,7 +347,7 @@ nvrhi::BindingSetHandle TerrainPass::CreateViewBindingSet()
 	nvrhi::BindingSetDesc bindingSetDescs;
 	bindingSetDescs.bindings = {
 		nvrhi::BindingSetItem::ConstantBuffer(1, m_TerrainViewPassCB),
-		//nvrhi::BindingSetItem::ConstantBuffer(2, m_TerrainLightPassCB),
+		nvrhi::BindingSetItem::ConstantBuffer(2, m_TerrainParamsPassCB),
 	};
 	bindingSetDescs.trackLiveness = m_TrackLiveness;
 

@@ -23,7 +23,7 @@ struct Node
 	{
 
 		float minDist = length(m_Position - _Position);
-		/*{
+		{
 			float2 vertPos0 = m_Position - m_Extents;
 			float2 vertPos1 = m_Position + m_Extents;
 			float2 vertPos2 = float2(m_Position.x + m_Extents.x, m_Position.y - m_Extents.y);
@@ -33,7 +33,7 @@ struct Node
 			minDist = fminf(length(vertPos1 - _Position), minDist);
 			minDist = fminf(length(vertPos2 - _Position), minDist);
 			minDist = fminf(length(vertPos3 - _Position), minDist);
-		}*/
+		}
 
 		return minDist <= _Radius;
 	};
@@ -90,4 +90,6 @@ public:
 	void ClearSelectedNodes() { m_SelectedNodes.clear(); };
 
 	const int GetNumLods() const { return m_NumLods; };
+
+	const std::array<float, MAX_LODS>& GetLodRanges() const { return m_LodRanges; };
 };

@@ -6,7 +6,7 @@ void QuadTree::Init(engine::TextureData* textureData)
 {
 	m_TextureData = textureData;
 
-	m_NumLods = min(MAX_LODS, int(sqrt(m_Width))) + 1;
+	m_NumLods = min(MAX_LODS, int(log2(m_Width) + 1));
 
 	m_RootNode = std::make_unique<Node>(float2(0.0f, 0.0f), float2(m_Width / 2.0f, m_Height / 2.0f));
 
@@ -100,7 +100,7 @@ void QuadTree::Split(Node* _Node, int _NumSplits)
 
 void QuadTree::InitLodRanges()
 {
-	float minLodDistance = 1.0f;
+	float minLodDistance = 4.0f;
 	for (int i = 0; i < MAX_LODS; i++)
 	{
 		m_LodRanges[i] = minLodDistance * pow(2, i);

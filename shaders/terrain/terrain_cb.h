@@ -8,13 +8,19 @@ struct TerrainViewConstants
 {
 	PlanarViewConstants view;
 	PlanarViewConstants viewPrev;
-	float size;
-	float maxHeight;
 };
 
 struct TerrainLightConstants
 {
 	LightConstants lights[16];
+};
+
+struct TerrainParamsConstants
+{
+	float size;
+	float maxHeight;
+	float2 padding;
+	float4 lodRanges[12]; // same as QuadTree::MAX_LODS
 };
 
 #endif // TERRAIN_CB_H
