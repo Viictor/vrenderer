@@ -13,6 +13,7 @@ struct UIData
 	bool m_Wireframe = false;
 	bool m_LockView = false;
 	float m_MaxHeight = 10.0f;
+	float m_SunDir[3] = { 0.1f ,-0.4f , 0.1f };
 };
 
 class UIRenderer : public donut::app::ImGui_Renderer
@@ -52,6 +53,8 @@ public:
 		ImGui::Checkbox("Lock View", &m_UIData.m_LockView);
 
 		ImGui::InputFloat("Max Height", &m_UIData.m_MaxHeight, 1.0);
+
+		ImGui::DragFloat3("Sun Dir", m_UIData.m_SunDir, 0.01f, -1.0f, 1.0f);
 
 		ImGui::End();
 	}

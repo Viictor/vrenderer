@@ -237,7 +237,7 @@ public:
             m_Scene->GetSceneGraph()->Attach(m_Scene->GetSceneGraph()->GetRootNode(), node);
             node->SetLeaf(m_DirectionalLight);
             m_DirectionalLight->SetName("Sun");
-            m_DirectionalLight->SetDirection(dm::normalize(dm::double3(0.1,-0.4,0.1)));
+            m_DirectionalLight->SetDirection(dm::normalize(dm::double3(m_UIData.m_SunDir[0], m_UIData.m_SunDir[1], m_UIData.m_SunDir[2])));
             m_DirectionalLight->angularSize = .53f;
             m_DirectionalLight->irradiance = 1.0f;
         }
@@ -311,7 +311,7 @@ public:
 
         m_RenderTargets->Clear(m_CommandList);
 
-
+        m_DirectionalLight->SetDirection(dm::normalize(dm::double3(m_UIData.m_SunDir[0], m_UIData.m_SunDir[1], m_UIData.m_SunDir[2])));
         m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
 
         render::GBufferFillPass::Context context;
