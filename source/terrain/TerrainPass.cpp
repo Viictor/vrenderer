@@ -40,8 +40,6 @@ TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonR
 
 void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture)
 {
-	const float scale = 1.0f;
-
 	m_SupportedViewTypes = engine::ViewType::PLANAR;
 
 	m_VertexShader = CreateVertexShader(shaderFactory, params);
@@ -72,7 +70,6 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 		{
 			assert(index < vPositions.size());
 			vPositions[index] = float3((float)w / halfSize, 0.0f, (float)h / halfSize);
-			vPositions[index] *= scale;
 			index++;
 		}
 	}
@@ -112,12 +109,10 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 
 	uint64_t vertexBufferSize = 0;
 	m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
-	m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
 	m_Buffers->vertexBuffer = CreateGeometryBuffer(m_Device, commandList, "VertexBuffer", nullptr, vertexBufferSize, true);
 
 	commandList->beginTrackingBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::CopyDest);
 	commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).byteOffset);
-	commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Normal).byteOffset);
 	commandList->setPermanentBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::VertexBuffer);
 	commandList->close();
 	m_Device->executeCommandList(commandList);
@@ -130,7 +125,7 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	m_MeshInfo = std::make_shared<engine::MeshInfo>();
 	m_MeshInfo->name = "TerrainMesh";
 	m_MeshInfo->buffers = m_Buffers;
-	m_MeshInfo->objectSpaceBounds = math::box3(math::float3(-0.5f) * scale, math::float3(0.5f) * scale);
+	m_MeshInfo->objectSpaceBounds = math::box3(math::float3(-0.5f), math::float3(0.5f));
 	m_MeshInfo->totalIndices = geometry->numIndices;
 	m_MeshInfo->totalVertices = geometry->numVertices;
 	m_MeshInfo->geometries.push_back(geometry);
@@ -184,7 +179,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 			SetupInputBuffers(passContext, m_Buffers.get(), graphicsState);
 
-			const bool drawMaterial = SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::None, graphicsState);
+			const bool drawMaterial = SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::Back, graphicsState);
 
 			if (drawMaterial)
 			{
@@ -297,8 +292,7 @@ void TerrainPass::SetupInputBuffers(GeometryPassContext& context, const engine::
 {
 	state.vertexBuffers = {
 		{buffers->vertexBuffer, 0, buffers->getVertexBufferRange(engine::VertexAttribute::Position).byteOffset },
-		{buffers->vertexBuffer, 1, buffers->getVertexBufferRange(engine::VertexAttribute::Normal).byteOffset },
-		{buffers->instanceBuffer, 2, 0 },
+		{buffers->instanceBuffer, 1, 0 },
 	};
 
 	state.indexBuffer = { buffers->indexBuffer, nvrhi::Format::R32_UINT, 0 };
@@ -309,8 +303,7 @@ nvrhi::InputLayoutHandle TerrainPass::CreateInputLayout(nvrhi::IShader* vertexSh
 	const nvrhi::VertexAttributeDesc inputDescs[] =
 	{
 		engine::GetVertexAttributeDesc(engine::VertexAttribute::Position, "POS", 0),
-		engine::GetVertexAttributeDesc(engine::VertexAttribute::Normal, "NORMAL", 1),
-		engine::GetVertexAttributeDesc(engine::VertexAttribute::Transform, "TRANSFORM", 2)
+		engine::GetVertexAttributeDesc(engine::VertexAttribute::Transform, "TRANSFORM", 1)
 	};
 
 	return m_Device->createInputLayout(inputDescs, dim(inputDescs), vertexShader);
@@ -357,7 +350,7 @@ nvrhi::BindingSetHandle TerrainPass::CreateViewBindingSet()
 nvrhi::BindingLayoutHandle vRenderer::TerrainPass::CreateHeightmapBindingLayout()
 {
 	nvrhi::BindingLayoutDesc heightmapLayoutDescs;
-	heightmapLayoutDescs.visibility = nvrhi::ShaderType::Vertex;
+	heightmapLayoutDescs.visibility = nvrhi::ShaderType::All;
 	heightmapLayoutDescs.bindings = {
 		nvrhi::BindingLayoutItem::Texture_SRV(0),
 		nvrhi::BindingLayoutItem::Sampler(0)

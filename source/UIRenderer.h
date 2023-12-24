@@ -10,7 +10,7 @@ using namespace donut::app;
 
 struct UIData
 {
-	bool m_Wireframe = true;
+	bool m_Wireframe = false;
 	bool m_LockView = false;
 	float m_MaxHeight = 10.0f;
 };

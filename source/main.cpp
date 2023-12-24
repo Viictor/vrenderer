@@ -89,7 +89,7 @@ private:
     std::shared_ptr<render::InstancedOpaqueDrawStrategy> m_OpaqueDrawStrategy;
 
     std::unique_ptr<render::SkyPass> m_SkyPass;
-    std::shared_ptr<engine::DirectionalLight> m_DirectionalLigh;
+    std::shared_ptr<engine::DirectionalLight> m_DirectionalLight;
 
     // Terrain Geometry Pass
     std::unique_ptr<vRenderer::TerrainPass> m_TerrainPass;
@@ -127,15 +127,15 @@ public:
         m_DeferredLightingPass = std::make_unique<render::DeferredLightingPass>(GetDevice(), m_CommonPasses);
         m_DeferredLightingPass->Init(m_ShaderFactory);
 
-        m_DirectionalLigh = std::make_shared<engine::DirectionalLight>();
+        m_DirectionalLight = std::make_shared<engine::DirectionalLight>();
 
         m_CommandList = GetDevice()->createCommandList();
 
 
+        m_UIData.m_MaxHeight = 30.0f;
         std::filesystem::path textureFileName ="/media/Heightmap_01_Mountain.png";
         std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
 
-        m_UIData.m_MaxHeight = 20.0f;
         m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice(), m_CommonPasses, m_UIData);
         m_TerrainPass->Init(*m_ShaderFactory, vRenderer::TerrainPass::CreateParameters(), m_CommandList, heightmapTexture);
 
@@ -149,14 +149,14 @@ public:
         }
 
 
-        /*if (sceneName.empty())
-            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "Sponza.gltf"));*/
-        //else
-        //    SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, sceneName));
+        if (sceneName.empty())
+            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "emptyScene.gltf"));
+        else
+            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, sceneName));
 
         {
-            m_Scene = std::make_unique<engine::Scene>(deviceManager->GetDevice(), *m_ShaderFactory, m_RootFs, m_TextureCache, nullptr, nullptr);
-            SceneLoaded();
+            //m_Scene = std::make_unique<engine::Scene>(deviceManager->GetDevice(), *m_ShaderFactory, m_RootFs, m_TextureCache, nullptr, nullptr);
+            //SceneLoaded();
             
             //auto node = std::make_shared<engine::SceneGraphNode>();
             //m_Scene->GetSceneGraph()->SetRootNode(node);
@@ -235,11 +235,11 @@ public:
         {
             std::shared_ptr<engine::SceneGraphNode> node = std::make_shared<engine::SceneGraphNode>();
             m_Scene->GetSceneGraph()->Attach(m_Scene->GetSceneGraph()->GetRootNode(), node);
-            node->SetLeaf(m_DirectionalLigh);
-            m_DirectionalLigh->SetName("Sun");
-            m_DirectionalLigh->SetDirection(dm::double3(.1, -.4, .1));
-            m_DirectionalLigh->angularSize = .53f;
-            m_DirectionalLigh->irradiance = 2.0f;
+            node->SetLeaf(m_DirectionalLight);
+            m_DirectionalLight->SetName("Sun");
+            m_DirectionalLight->SetDirection(dm::normalize(dm::double3(0.1,-0.4,0.1)));
+            m_DirectionalLight->angularSize = .53f;
+            m_DirectionalLight->irradiance = 1.0f;
         }
     }
 
@@ -312,7 +312,7 @@ public:
         m_RenderTargets->Clear(m_CommandList);
 
 
-        m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLigh, SkyParameters());
+        m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
 
         render::GBufferFillPass::Context context;
 
@@ -353,7 +353,7 @@ public:
 
             m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
         }
-        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->GBufferDiffuse, m_BindingCache.get());
+        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->ShadedColor, m_BindingCache.get());
 
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);
