@@ -21,21 +21,18 @@ struct Node
 
 	bool Intersects(float2 _Position, float _Radius) const
 	{
+		float2 min = m_Position - m_Extents;
+		float2 max = m_Position + m_Extents;
+		float2 distance = float2(0.0,0.0);
 
-		float minDist = length(m_Position - _Position);
-		{
-			float2 vertPos0 = m_Position - m_Extents;
-			float2 vertPos1 = m_Position + m_Extents;
-			float2 vertPos2 = float2(m_Position.x + m_Extents.x, m_Position.y - m_Extents.y);
-			float2 vertPos3 = float2(m_Position.x - m_Extents.x, m_Position.y + m_Extents.y);
+		if (_Position.x < min.x) distance.x = (_Position.x - min.x);
+		else if (_Position.x > max.x) distance.x = (_Position.x - max.x);
+		if (_Position.y < min.y) distance.y = (_Position.y - min.y);
+		else if (_Position.y > max.y) distance.y = (_Position.y - max.y);
+		/*if (_Position.z < min.z) distance.z = (_Position.z - min.z);
+		else if (_Position.z > max.z) distance.z = (_Position.z - max.z);*/
 
-			minDist = fminf(length(vertPos0 - _Position), minDist);
-			minDist = fminf(length(vertPos1 - _Position), minDist);
-			minDist = fminf(length(vertPos2 - _Position), minDist);
-			minDist = fminf(length(vertPos3 - _Position), minDist);
-		}
-
-		return minDist <= _Radius;
+		return (distance.x * distance.x + distance.y * distance.y) <= _Radius;
 	};
 
 	float2 m_Position;

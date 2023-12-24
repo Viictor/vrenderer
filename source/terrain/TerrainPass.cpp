@@ -165,7 +165,6 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 		auto nodes = m_QuadTree->GetSelectedNodes();
 		assert(int(nodes.size()) < MAX_INSTANCES);
-		//for (int i = 0; i < nodes.size(); i++)
 		{
 			Context passContext;
 			SetupView(passContext, commandList, view, viewPrev);

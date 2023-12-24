@@ -43,7 +43,7 @@ void QuadTree::PrintSelected() const
 
 bool QuadTree::NodeSelect(const float2 _Position, const Node* _Node, int _LodLevel, const dm::frustum& _Frustum)
 {
-	if (!_Node->Intersects(_Position, m_LodRanges[_LodLevel])) // discard nodes out of range
+	if (!_Node->Intersects(_Position, m_LodRanges[_LodLevel] * m_LodRanges[_LodLevel])) // discard nodes out of range
 		return false;
 
 	float3 min = float3(_Node->m_Position.x - _Node->m_Extents.x, 0.0f, _Node->m_Position.y - _Node->m_Extents.y);
@@ -60,7 +60,7 @@ bool QuadTree::NodeSelect(const float2 _Position, const Node* _Node, int _LodLev
 	}
 	else
 	{
-		if (!_Node->Intersects(_Position, m_LodRanges[_LodLevel - 1])) // Add it if only this level is intersecting and not a deeper one
+		if (!_Node->Intersects(_Position, m_LodRanges[_LodLevel - 1] * m_LodRanges[_LodLevel - 1])) // Add it if only this level is intersecting and not a deeper one
 		{
 			// Add Node
 			m_SelectedNodes.push_back(_Node);

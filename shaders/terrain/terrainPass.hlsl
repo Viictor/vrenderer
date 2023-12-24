@@ -39,15 +39,19 @@ float computeMorphK(float distance, float gridExtents)
 {
     int lod = int(log2(gridExtents));
 
-    float low = 0.0;
-    if (lod > 0)
-        low = c_TerrainParams.lodRanges[lod - 1].x;
+    float start = c_TerrainParams.lodRanges[lod].x * 0.85;
+    float end = c_TerrainParams.lodRanges[lod].x;
+    float delta = end - start;
+    float morph = (distance - start) / delta; // [0,1]
+    return saturate(morph);
+}
 
-    float high = c_TerrainParams.lodRanges[lod].x;
-    float delta = high - low;
-    float morph = (distance - low) / delta; // [0,1]
+float sampleHeight(float2 worldPos)
+{
+    const float halfSize = c_TerrainParams.size * 0.5;
+    float2 uv = (worldPos + halfSize) / c_TerrainParams.size;
     
-    return clamp(morph / 0.5 - 1.0, 0.001, 1.0); // [-1,1] means we are going to start morphing after the half way point
+    return t_Heightmap.SampleLevel(s_HeightmapSampler, uv, 0).r * c_TerrainParams.maxHeight;
 }
 
 float sampleHeight(float2 worldPos, float2 offset)
@@ -55,7 +59,7 @@ float sampleHeight(float2 worldPos, float2 offset)
     const float halfSize = c_TerrainParams.size * 0.5;
     float2 uv = (worldPos + halfSize) / c_TerrainParams.size;
     
-    return t_Heightmap.SampleLevel(s_HeightmapSampler, uv + offset / c_TerrainParams.size, 0).r * c_TerrainParams.maxHeight;
+    return t_Heightmap.Sample(s_HeightmapSampler, uv + offset / c_TerrainParams.size).r * c_TerrainParams.maxHeight;
 }
 
 void main_vs(
@@ -68,7 +72,7 @@ void main_vs(
 )
 {
     float4 worldPos = float4(mul(i_instanceMatrix, float4(i_vtx.pos, 1.0)), 1.0);
-    //float height = sampleHeight(worldPos.xz, float2(0.0,0.0));
+    //float height = sampleHeight(worldPos.xz);
     //worldPos.y = height;
     //worldPos = float4(mul(i_instanceMatrix, float4(i_vtx.pos.x, height, i_vtx.pos.z, 1.0)), 1.0);
     
@@ -77,10 +81,10 @@ void main_vs(
     float morphK = computeMorphK(distance, gridExtents);
     float2 gridPos = (i_vtx.pos.xz + 1.0) * 0.5;
     worldPos.xz = morphVertex(gridPos, worldPos.xz, morphK, gridExtents);
-    worldPos.y = sampleHeight(worldPos.xz, float2(0.0,0.0));
+    worldPos.y = sampleHeight(worldPos.xz);
 
     o_debug = float3(worldPos.y, worldPos.y, worldPos.y) / c_TerrainParams.maxHeight;
-    //o_debug = float3(gridPos.x, morphK, gridPos.y);
+    //o_debug = float3(1, morphK, 1);
 
     o_vtx = i_vtx;
     o_vtx.pos = worldPos.xyz;
