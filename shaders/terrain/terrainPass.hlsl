@@ -30,7 +30,7 @@ SamplerState s_HeightmapSampler : register(s0);
 //  - morphK:  morph value
 float2 morphVertex(float2 gridPos, float2 vertex, float morphK, float gridExtents)
 {
-    const float GRID_SIZE = 16.0;
+    const float GRID_SIZE = 32.0;
     float2 fracPart = frac(gridPos * GRID_SIZE * 0.5) * 2.0 / GRID_SIZE;
     return vertex - fracPart * gridExtents * morphK;
 }
@@ -115,15 +115,18 @@ void main_ps(
     
     //o_channel0.xyz = float3(i_vtx.pos.yyy / 20.f);
     
-    float3 green = float3(.2, .7, .2);
+    float3 green = float3(.1, .6, .1);
     
     
-    o_channel0.xyz = lerp(green, float3(5.0, 2.0, 3.0), pow(i_debug.x, 2.0));
-    o_channel0.w = 1.0;
-    o_channel1.xyz = float3(0.0, 0.0, 0.0);
-    o_channel1.w = 1.0;
-    o_channel2.xyz = normal;
-    o_channel2.w = 0.2;
-    o_channel3.xyz = float3(0.0,0.0,0.0);
+    o_channel0.xyz = lerp(green, float3(5.0, 2.0, 3.0), pow(i_debug.x, 2.0)); // albedo
+    
+    //o_channel0.xyz = lerp(float3(227.0, 249.0, 136.0), float3(100.0, 65.0, 23.0), pow(i_debug.x, 1.0)) / 255.0;
+    
+    o_channel0.w = 1.0; //opacity
+    o_channel1.xyz = float3(1.0, 1.0, 1.0)*0.3; // specular f0
+    o_channel1.w = 1.0; // occlusion
+    o_channel2.xyz = normal; //normal
+    o_channel2.w = 1.0; // roughness
+    o_channel3.xyz = float3(0.0,0.0,0.0); // emissive
     o_channel3.w = 0;
 }

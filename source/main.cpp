@@ -133,7 +133,7 @@ public:
 
 
         m_UIData.m_MaxHeight = 30.0f;
-        std::filesystem::path textureFileName ="/media/Heightmap_01_Mountain.png";
+        std::filesystem::path textureFileName ="/media/Heightmap_01_Mountains.png";
         std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
 
         m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice(), m_CommonPasses, m_UIData);
@@ -353,7 +353,9 @@ public:
 
             m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
         }
-        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->ShadedColor, m_BindingCache.get());
+
+        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, 
+            m_UIData.m_Wireframe ? m_RenderTargets->GBufferDiffuse : m_RenderTargets->ShadedColor, m_BindingCache.get());
 
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);

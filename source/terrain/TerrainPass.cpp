@@ -18,8 +18,8 @@ using namespace vRenderer;
 using namespace donut;
 
 #define MAX_INSTANCES 4096
-#define WORLD_SIZE 64.0f
-#define GRID_SIZE 16
+#define WORLD_SIZE 256.0f
+#define GRID_SIZE 32
 
 struct TerrainPass::Resources
 {
