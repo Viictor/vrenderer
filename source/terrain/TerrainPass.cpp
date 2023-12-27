@@ -265,6 +265,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
 
 		auto nodes = m_QuadTree->GetSelectedNodes();
+		m_UIData.m_NumChunks = nodes.size();
 		assert(int(nodes.size()) < MAX_INSTANCES);
 		{
 			Context passContext;

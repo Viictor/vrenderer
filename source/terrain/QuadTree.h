@@ -64,7 +64,7 @@ public:
 	static constexpr int MAX_LODS = 12;
 private:
 
-	bool m_Initialized = false;
+	bool m_HeightLoaded = false;
 
 	std::unique_ptr<Node> m_RootNode;
 	std::vector<const Node*> m_SelectedNodes;
@@ -80,6 +80,8 @@ private:
 	float2 GetMinMaxHeightValue(float2 _Position, float width, float height);
 
 	void Split(Node* _Node, int _NumSplits = 0);
+
+	void SetHeight(Node* _Node, int _NumSplits = 0);
 
 	void InitLodRanges();
 
