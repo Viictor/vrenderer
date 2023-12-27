@@ -260,7 +260,6 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 			Update(commandList);
 		}
-		//m_QuadTree->PrintSelected();
 
 		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
 
@@ -290,7 +289,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 				args.vertexCount = m_MeshInfo->geometries[0]->numIndices;
 				args.instanceCount = uint32_t(nodes.size());
 				args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
-				args.startInstanceLocation = 0;// m_MeshInstance->GetInstanceIndex();
+				args.startInstanceLocation = 0;
 
 				args.startIndexLocation = m_MeshInfo->indexOffset + m_MeshInfo->geometries[0]->indexOffsetInMesh;
 				
@@ -536,7 +535,6 @@ nvrhi::BufferHandle TerrainPass::CreateGeometryBuffer(nvrhi::IDevice* device, nv
 	desc.isVertexBuffer = isVertexBuffer;
 	desc.isIndexBuffer = !isVertexBuffer;
 	desc.debugName = debugName;
-	//desc.initialState = nvrhi::ResourceStates::CopyDest;
 	bufHandle = device->createBuffer(desc);
 
 	if (data)

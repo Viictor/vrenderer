@@ -18,27 +18,27 @@ namespace tf
 
 struct Node
 {
-	Node(const float3 _Position, const float3 _Extents) 
-		: m_Position(_Position)
-		, m_Extents(_Extents) 
+	Node(const float3 position, const float3 extents) 
+		: m_Position(position)
+		, m_Extents(extents) 
 	{
 		m_Children.fill(nullptr);
 	};
 
-	bool Intersects(float3 _Position, float _Radius) const
+	bool Intersects(float3 position, float radius) const
 	{
 		float3 min = m_Position - m_Extents;
 		float3 max = m_Position + m_Extents;
 		float3 distance = float3(0.0,0.0, 0.0);
 
-		if (_Position.x < min.x) distance.x = (_Position.x - min.x);
-		else if (_Position.x > max.x) distance.x = (_Position.x - max.x);
-		/*if (_Position.y < min.y) distance.y = (_Position.y - min.y);
-		else if (_Position.y > max.y) distance.y = (_Position.y - max.y);*/
-		if (_Position.z < min.z) distance.z = (_Position.z - min.z);
-		else if (_Position.z > max.z) distance.z = (_Position.z - max.z);
+		if (position.x < min.x) distance.x = (position.x - min.x);
+		else if (position.x > max.x) distance.x = (position.x - max.x);
+		/*if (position.y < min.y) distance.y = (position.y - min.y);
+		else if (position.y > max.y) distance.y = (position.y - max.y);*/
+		if (position.z < min.z) distance.z = (position.z - min.z);
+		else if (position.z > max.z) distance.z = (position.z - max.z);
 
-		return dot(distance, distance) <= _Radius;
+		return dot(distance, distance) <= radius;
 	};
 
 	float3 m_Position;
@@ -76,18 +76,18 @@ private:
 	float m_Height;
 	float2 m_TexelSize;
 
-	float GetHeightValue(float2 _Position);
-	float2 GetMinMaxHeightValue(float2 _Position, float width, float height);
+	float GetHeightValue(float2 position);
+	float2 GetMinMaxHeightValue(float2 position, float width, float height);
 
-	void Split(Node* _Node, int _NumSplits = 0);
+	void Split(Node* node, int numSplits = 0);
 
-	void SetHeight(Node* _Node, int _NumSplits = 0);
+	void SetHeight(Node* node, int numSplits = 0);
 
 	void InitLodRanges();
 
 public:
-	QuadTree(const float _Width, const float _Height) 
-		: m_Width(_Width), m_Height(_Height) 
+	QuadTree(const float width, const float height) 
+		: m_Width(width), m_Height(height) 
 	{
 		InitLodRanges();
 	};
@@ -103,11 +103,11 @@ public:
 #ifdef DONUT_WITH_TASKFLOW
 	void Init(std::shared_ptr<engine::LoadedTexture> textureData, tf::Executor& executor);
 #endif
-	void Print(const Node* _Node, int _level);
+	void Print(const Node* node, int level);
 
 	void PrintSelected() const;
 
-	bool NodeSelect(const float3 _Position, const Node* _Node, int _LodLevel, const dm::frustum& _Frustum, const float _MaxHeight);
+	bool NodeSelect(const float3 position, const Node* node, int lodLevel, const dm::frustum& frustum, const float maxHeight);
 
 	const std::vector<const Node*> GetSelectedNodes() const { return m_SelectedNodes; };
 
