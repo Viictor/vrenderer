@@ -9,12 +9,10 @@
 using namespace donut;
 using namespace donut::math;
 
-#ifdef DONUT_WITH_TASKFLOW
 namespace tf
 {
 	class Executor;
 }
-#endif
 
 struct Node
 {
@@ -98,11 +96,8 @@ public:
 			free(m_HeightmapData.data);
 	}
 
-	void Init(std::shared_ptr<engine::LoadedTexture> textureData);
-
-#ifdef DONUT_WITH_TASKFLOW
 	void Init(std::shared_ptr<engine::LoadedTexture> textureData, tf::Executor& executor);
-#endif
+
 	void Print(const Node* node, int level);
 
 	void PrintSelected() const;

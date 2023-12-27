@@ -120,10 +120,7 @@ namespace vRenderer
 
 	public:
 		TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData);
-#ifdef DONUT_WITH_TASKFLOW
 		void Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture, tf::Executor& executor);
-#endif
-		void Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture);
 		void Render(
 			nvrhi::ICommandList* commandList, 
 			const engine::ICompositeView* compositeView,

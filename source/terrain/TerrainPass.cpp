@@ -9,9 +9,7 @@
 #include <nvrhi/utils.h>
 #include <donut/shaders/bindless.h>
 
-#ifdef DONUT_WITH_TASKFLOW
 #include <taskflow/taskflow.hpp>
-#endif
 
 #include "../UIRenderer.h"
 
@@ -42,7 +40,6 @@ TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonR
 	m_Resources->instanceData.resize((MAX_INSTANCES));
 }
 
-#ifdef DONUT_WITH_TASKFLOW
 void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture, tf::Executor& executor)
 {
 	m_SupportedViewTypes = engine::ViewType::PLANAR;
@@ -105,101 +102,6 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	
 	m_QuadTree->Init(m_Resources->heightmapTexture, executor);
 
-
-	commandList->open();
-
-	m_Buffers = std::make_shared<engine::BufferGroup>();
-	m_Buffers->instanceBuffer = CreateInstanceBuffer(m_Device);
-
-	m_Buffers->indexBuffer = CreateGeometryBuffer(m_Device, commandList, "IndexBuffer", vIndices.data(), vIndices.size() * sizeof(uint32_t), false);
-
-	uint64_t vertexBufferSize = 0;
-	m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).setByteOffset(vertexBufferSize).setByteSize(vPositionsByteSize); vertexBufferSize += vPositionsByteSize;
-	m_Buffers->vertexBuffer = CreateGeometryBuffer(m_Device, commandList, "VertexBuffer", nullptr, vertexBufferSize, true);
-
-	commandList->beginTrackingBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::CopyDest);
-	commandList->writeBuffer(m_Buffers->vertexBuffer, vPositions.data(), vPositionsByteSize, m_Buffers->getVertexBufferRange(engine::VertexAttribute::Position).byteOffset);
-	commandList->setPermanentBufferState(m_Buffers->vertexBuffer, nvrhi::ResourceStates::VertexBuffer);
-	commandList->close();
-	m_Device->executeCommandList(commandList);
-
-	std::shared_ptr<engine::MeshGeometry> geometry = std::make_shared<engine::MeshGeometry>();
-	geometry->material = nullptr;
-	geometry->numIndices = static_cast<uint32_t>(vIndices.size());
-	geometry->numVertices = static_cast<uint32_t>(vPositions.size());
-
-	m_MeshInfo = std::make_shared<engine::MeshInfo>();
-	m_MeshInfo->name = "TerrainMesh";
-	m_MeshInfo->buffers = m_Buffers;
-	m_MeshInfo->objectSpaceBounds = math::box3(math::float3(-0.5f), math::float3(0.5f));
-	m_MeshInfo->totalIndices = geometry->numIndices;
-	m_MeshInfo->totalVertices = geometry->numVertices;
-	m_MeshInfo->geometries.push_back(geometry);
-}
-#endif
-
-void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture)
-{
-	m_SupportedViewTypes = engine::ViewType::PLANAR;
-
-	m_VertexShader = CreateVertexShader(shaderFactory, params);
-	m_PixelShader = CreatePixelShader(shaderFactory, params);
-	m_InputLayout = CreateInputLayout(m_VertexShader, params);
-
-	m_TerrainViewPassCB = m_Device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(TerrainViewConstants), "TerrainViewConstants", params.numConstantBufferVersions));
-	m_TerrainLightPassCB = m_Device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(TerrainLightConstants), "TerrainLightConstants", params.numConstantBufferVersions));
-	m_TerrainParamsPassCB = m_Device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(TerrainParamsConstants), "TerrainParamsConstants", params.numConstantBufferVersions));
-
-	m_ViewBindingLayout = CreateViewBindingLayout();
-	m_ViewBindingSet = CreateViewBindingSet();
-	m_LightBindingLayout = CreateLightBindingLayout();
-
-	std::vector<float3> vPositions;
-	std::vector<uint32_t> vIndices;
-	uint32_t vPositionsByteSize = 0;
-	
-	const int sideSize = GRID_SIZE + 1;
-	const int halfSize = GRID_SIZE / 2;
-	vPositions.resize(sideSize * sideSize);
-	vPositionsByteSize = sideSize * sideSize * sizeof(float3);
-
-	size_t index = 0;
-	for (int h = -halfSize; h <= halfSize; h++)
-	{
-		for (int w = -halfSize; w <= halfSize; w++)
-		{
-			assert(index < vPositions.size());
-			vPositions[index] = float3((float)w / halfSize, 0.0f, (float)h / halfSize);
-			index++;
-		}
-	}
-
-	index = 0;
-	vIndices.resize((sideSize - 1) * (sideSize - 1) * 6);
-	for (int i = 0; i < sideSize - 1; i++)
-	{
-		for (int j = 0; j < sideSize - 1; j++)
-		{
-			uint32_t indexBottomLeft = i * sideSize + j;
-			uint32_t indexTopLeft = (i + 1) * sideSize + j;
-			uint32_t indexTopRight = (i + 1) * sideSize + j + 1;
-			uint32_t indexBottomRight = i * sideSize + j + 1;
-
-			vIndices[index++] = indexBottomLeft;
-			vIndices[index++] = indexTopLeft;
-			vIndices[index++] = indexTopRight;
-
-			vIndices[index++] = indexBottomLeft;
-			vIndices[index++] = indexTopRight;
-			vIndices[index++] = indexBottomRight;
-		}
-	}
-
-	m_Resources->heightmapTexture = heightmapTexture;
-	m_HeightmapBindingLayout = CreateHeightmapBindingLayout();
-	engine::TextureData* textureData = static_cast<engine::TextureData*>(m_Resources->heightmapTexture.get());
-
-	m_QuadTree->Init(m_Resources->heightmapTexture);
 
 	commandList->open();
 

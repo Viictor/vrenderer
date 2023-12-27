@@ -2,11 +2,8 @@
 
 #include <donut/core/log.h>
 #include <donut/core/vfs/VFS.h>
-#ifdef DONUT_WITH_TASKFLOW
 #include <taskflow/taskflow.hpp>
-#endif
 
-#ifdef DONUT_WITH_TASKFLOW
 void QuadTree::Init(std::shared_ptr<engine::LoadedTexture> loadedTexture, tf::Executor& executor)
 {
 	engine::TextureData* textureData = static_cast<engine::TextureData*>(loadedTexture.get());
@@ -43,42 +40,6 @@ void QuadTree::Init(std::shared_ptr<engine::LoadedTexture> loadedTexture, tf::Ex
 			m_HeightLoaded = true;
 			log::info("QuadTree nodes height set");
 		});
-}
-#endif
-
-void QuadTree::Init(std::shared_ptr<engine::LoadedTexture> loadedTexture)
-{
-	engine::TextureData* textureData = static_cast<engine::TextureData*>(loadedTexture.get());
-
-	m_NumLods = min(MAX_LODS, int(log2(m_Width) + 1));
-	size_t dataSize = textureData->dataLayout[0][0].dataSize;
-	if (dataSize > 0)
-	{
-		m_HeightmapData.width = textureData->width;
-		m_HeightmapData.height = textureData->height;
-		m_HeightmapData.data = malloc(dataSize);
-
-		m_TexelSize = float2(m_HeightmapData.width / m_Width, m_HeightmapData.height / m_Height);
-		memcpy(m_HeightmapData.data, (void*)textureData->data->data(), dataSize);
-	}
-	else
-	{
-		m_HeightmapData.width = 0;
-		m_HeightmapData.height = 0;
-		m_TexelSize = float2(m_HeightmapData.width / m_Width, m_HeightmapData.height / m_Height);
-
-		log::error("Heightmap texture data missing for QuadTree generation");
-	}
-
-	m_RootNode = std::make_unique<Node>(float3(0.0f, 0.0f, 0.0f), float3(m_Width / 2.0f, 0.0f, m_Height / 2.0f));
-
-	int numSplits = 1;
-	Split(m_RootNode.get(), numSplits);
-
-	numSplits = 0;
-	SetHeight(m_RootNode.get(), numSplits);
-
-	m_HeightLoaded = true;
 }
 
 void QuadTree::Print(const Node* node, int level)
