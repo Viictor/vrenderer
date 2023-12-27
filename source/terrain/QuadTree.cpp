@@ -2,22 +2,81 @@
 
 #include <donut/core/log.h>
 #include <donut/core/vfs/VFS.h>
+#ifdef DONUT_WITH_TASKFLOW
+#include <taskflow/taskflow.hpp>
+#endif
 
-void QuadTree::Init(engine::TextureData* textureData)
+#ifdef DONUT_WITH_TASKFLOW
+void QuadTree::Init(std::shared_ptr<engine::LoadedTexture> loadedTexture, tf::Executor& executor)
 {
-	m_TextureData = textureData;
-	m_TexelSize = float2(m_TextureData->width / m_Width, m_TextureData->height / m_Height);
+	engine::TextureData* textureData = static_cast<engine::TextureData*>(loadedTexture.get());
 
 	m_NumLods = min(MAX_LODS, int(log2(m_Width) + 1));
+	size_t dataSize = textureData->dataLayout[0][0].dataSize;
+	if (dataSize > 0)
+	{
+		m_HeightmapData.width = textureData->width;
+		m_HeightmapData.height = textureData->height;
+		m_HeightmapData.data = malloc(dataSize);
+		m_TexelSize = float2(m_HeightmapData.width / m_Width, m_HeightmapData.height / m_Height);
+		memcpy(m_HeightmapData.data, (void*)textureData->data->data(), textureData->data->size());
+	}
+	else
+	{
+		m_HeightmapData.width = 0;
+		m_HeightmapData.height = 0;
+		m_TexelSize = float2(m_HeightmapData.width / m_Width, m_HeightmapData.height / m_Height);
 
+		log::error("Heightmap texture data missing for QuadTree generation");
 
-	float2 minMax = GetMinMaxHeightValue(float2(0.0f, 0.0f), m_Width, m_Height);
+	}
+
+	executor.silent_async([this]()
+		{
+			float2 minMax = GetMinMaxHeightValue(float2(0.0f, 0.0f), m_Width, m_Height);
+			m_RootNode = std::make_unique<Node>(float3(0.0f, minMax.x, 0.0f), float3(m_Width / 2.0f, minMax.y, m_Height / 2.0f));
+
+			int numSplits = 1;
+			Split(m_RootNode.get(), numSplits);
+
+			m_Initialized = true;
+		});
+}
+#endif
+
+void QuadTree::Init(std::shared_ptr<engine::LoadedTexture> loadedTexture)
+{
+	engine::TextureData* textureData = static_cast<engine::TextureData*>(loadedTexture.get());
+
+	m_NumLods = min(MAX_LODS, int(log2(m_Width) + 1));
+	size_t dataSize = textureData->dataLayout[0][0].dataSize;
+	float2 minMax = float2(0.0f, 0.0f);
+	if (dataSize > 0)
+	{
+		m_HeightmapData.width = textureData->width;
+		m_HeightmapData.height = textureData->height;
+		m_HeightmapData.data = malloc(dataSize);
+
+		m_TexelSize = float2(m_HeightmapData.width / m_Width, m_HeightmapData.height / m_Height);
+		memcpy(m_HeightmapData.data, (void*)textureData->data->data(), textureData->data->size());
+
+		minMax = GetMinMaxHeightValue(float2(0.0f, 0.0f), m_Width, m_Height);
+	}
+	else
+	{
+		m_HeightmapData.width = 0;
+		m_HeightmapData.height = 0;
+		m_TexelSize = float2(m_HeightmapData.width / m_Width, m_HeightmapData.height / m_Height);
+
+		log::error("Heightmap texture data missing for QuadTree generation");
+	}
+
 	m_RootNode = std::make_unique<Node>(float3(0.0f, minMax.x, 0.0f), float3(m_Width / 2.0f, minMax.y, m_Height / 2.0f));
 
 	int numSplits = 1;
 	Split(m_RootNode.get(), numSplits);
 
-	//Print(m_RootNode.get(), 0);
+	m_Initialized = true;
 }
 
 void QuadTree::Print(const Node* _Node, int _level)
@@ -47,6 +106,9 @@ void QuadTree::PrintSelected() const
 
 bool QuadTree::NodeSelect(const float3 _Position, const Node* _Node, int _LodLevel, const dm::frustum& _Frustum, const float _MaxHeight)
 {
+	if (!m_Initialized)
+		return false;
+
 	if (!_Node->Intersects(_Position, m_LodRanges[_LodLevel] * m_LodRanges[_LodLevel])) // discard nodes out of range
 		return false;
 
@@ -88,9 +150,9 @@ bool QuadTree::NodeSelect(const float3 _Position, const Node* _Node, int _LodLev
 
 float QuadTree::GetHeightValue(float2 _Position)
 {
-	const uint8_t* byteData = reinterpret_cast<const uint8_t*>(m_TextureData->data->data());
+	const uint8_t* byteData = reinterpret_cast<const uint8_t*>(m_HeightmapData.data);
 
-	int index = _Position.x + _Position.y * m_TextureData->width;
+	int index = static_cast<int>(_Position.x + _Position.y * m_HeightmapData.width);
 
 	float heightValue = static_cast<float>(byteData[index]) / 255.0f;
 
@@ -160,6 +222,6 @@ void QuadTree::InitLodRanges()
 	float minLodDistance = 4.0f;
 	for (int i = 0; i < MAX_LODS; i++)
 	{
-		m_LodRanges[i] = minLodDistance * pow(2, i);
+		m_LodRanges[i] = minLodDistance * pow(2.0f, i);
 	}
 }

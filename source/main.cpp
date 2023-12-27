@@ -23,6 +23,9 @@
 #include "UIRenderer.h"
 #include "terrain/TerrainPass.h"
 #include "terrain/QuadTree.h"
+#ifdef DONUT_WITH_TASKFLOW
+#include <taskflow/taskflow.hpp>
+#endif
 
 using namespace donut;
 using namespace donut::math;
@@ -101,11 +104,22 @@ private:
 
     UIData& m_UIData;
 
+#ifdef DONUT_WITH_TASKFLOW
+    tf::Executor& m_Executor;
+#endif
+
 public:
 
+#ifdef DONUT_WITH_TASKFLOW
+    VRenderer(app::DeviceManager* deviceManager, const std::string& sceneName, UIData& uiData, tf::Executor& executor)
+#else
 	VRenderer(app::DeviceManager* deviceManager, const std::string& sceneName, UIData& uiData)
+#endif
         : Super(deviceManager)
         , m_UIData(uiData)
+#ifdef DONUT_WITH_TASKFLOW
+        , m_Executor(executor)
+#endif
 	{
         std::filesystem::path mediaPath = app::GetDirectoryWithExecutable().parent_path() / "media";
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
@@ -137,8 +151,11 @@ public:
         std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
 
         m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice(), m_CommonPasses, m_UIData);
+#ifdef DONUT_WITH_TASKFLOW
+        m_TerrainPass->Init(*m_ShaderFactory, vRenderer::TerrainPass::CreateParameters(), m_CommandList, heightmapTexture, m_Executor);
+#else
         m_TerrainPass->Init(*m_ShaderFactory, vRenderer::TerrainPass::CreateParameters(), m_CommandList, heightmapTexture);
-
+#endif
         std::filesystem::path scenePath = "/media/glTF-Sample-Models/2.0";
         m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
 
@@ -246,8 +263,10 @@ public:
     bool KeyboardUpdate(int key, int scancode, int action, int mods) override
     {
         if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
+        {
+            m_Executor.wait_for_all();
             glfwSetWindowShouldClose(GetDeviceManager()->GetWindow(), true);
-
+        }
         m_FirstPersonCamera.KeyboardUpdate(key, scancode, action, mods);
 
         return true;
@@ -386,7 +405,12 @@ int main(int __argc, const char** __argv)
 
     {
         UIData uiData;
+#ifdef DONUT_WITH_TASKFLOW
+        tf::Executor executor;
+        std::shared_ptr<VRenderer> vRenderer = std::make_shared<VRenderer>(deviceManager, "", uiData, executor);
+#else
         std::shared_ptr<VRenderer> vRenderer = std::make_shared<VRenderer>(deviceManager, "", uiData);
+#endif
         std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, vRenderer->GetRootFs(), uiData);
 
         gui->Init(vRenderer->GetShaderFactory());

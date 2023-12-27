@@ -9,6 +9,13 @@
 using namespace donut;
 using namespace donut::math;
 
+#ifdef DONUT_WITH_TASKFLOW
+namespace tf
+{
+	class Executor;
+}
+#endif
+
 struct Node
 {
 	Node(const float3 _Position, const float3 _Extents) 
@@ -44,16 +51,25 @@ struct Node
 	static constexpr int BR = 3;
 };
 
+struct HeightmapData
+{
+	void* data;
+	uint32_t width;
+	uint32_t height;
+};
+
 class QuadTree
 {
 public:
 	static constexpr int MAX_LODS = 12;
 private:
 
+	bool m_Initialized = false;
+
 	std::unique_ptr<Node> m_RootNode;
 	std::vector<const Node*> m_SelectedNodes;
 	std::array<float, MAX_LODS> m_LodRanges;
-	engine::TextureData* m_TextureData;
+	HeightmapData m_HeightmapData;
 
 	int m_NumLods;
 	float m_Width;
@@ -74,8 +90,17 @@ public:
 		InitLodRanges();
 	};
 
-	void Init(engine::TextureData* textureData);
+	~QuadTree()
+	{
+		if (m_HeightmapData.data)
+			free(m_HeightmapData.data);
+	}
 
+	void Init(std::shared_ptr<engine::LoadedTexture> textureData);
+
+#ifdef DONUT_WITH_TASKFLOW
+	void Init(std::shared_ptr<engine::LoadedTexture> textureData, tf::Executor& executor);
+#endif
 	void Print(const Node* _Node, int _level);
 
 	void PrintSelected() const;
