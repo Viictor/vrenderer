@@ -43,9 +43,10 @@ donut_compile_shaders_all_platforms(
 )
 
 add_executable(${project} WIN32 ${sources})
-target_link_libraries(${project} donut_render donut_app donut_engine)
+target_link_libraries(${project} PUBLIC donut_render donut_app donut_engine PRIVATE ws2_32)
 add_dependencies(${project} ${project}_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
+target_compile_definitions(${PROJECT_NAME} PRIVATE STB_SPRINTF_IMPLEMENTATION MICROPROFILE_SYSTEM_STB)
 
 if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /MP")

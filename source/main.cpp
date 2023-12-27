@@ -17,6 +17,7 @@
 #include <donut/engine/FramebufferFactory.h>
 
 #include <donut/render/SkyPass.h>
+#include <donut/render/ToneMappingPasses.h>
 
 #include <donut/engine/SceneGraph.h>
 
@@ -27,6 +28,8 @@
 #include <taskflow/taskflow.hpp>
 #endif
 
+#include "microprofile/microprofile.h"
+
 using namespace donut;
 using namespace donut::math;
 
@@ -35,7 +38,11 @@ static const char* g_WindowTitle = "vRenderer";
 class RenderTargets : public render::GBufferRenderTargets
 {
 public:
-    nvrhi::TextureHandle ShadedColor;
+    nvrhi::TextureHandle LdrColor;
+    nvrhi::TextureHandle HdrColor;
+
+    std::shared_ptr<engine::FramebufferFactory> HdrFramebuffer;
+    std::shared_ptr<engine::FramebufferFactory> LdrFramebuffer;
 
     void Init(
         nvrhi::IDevice* device,
@@ -50,13 +57,33 @@ public:
         textureDesc.dimension = nvrhi::TextureDimension::Texture2D;
         textureDesc.initialState = nvrhi::ResourceStates::UnorderedAccess;
         textureDesc.keepInitialState = true;
-        textureDesc.debugName = "ShadedColor";
+        textureDesc.debugName = "HdrColor";
         textureDesc.isUAV = true;
         textureDesc.format = nvrhi::Format::RGBA16_FLOAT;
         textureDesc.width = size.x;
         textureDesc.height = size.y;
         textureDesc.sampleCount = sampleCount;
-        ShadedColor = device->createTexture(textureDesc);
+        HdrColor = device->createTexture(textureDesc);
+
+        textureDesc = {};
+        textureDesc.dimension = nvrhi::TextureDimension::Texture2D;
+        textureDesc.initialState = nvrhi::ResourceStates::RenderTarget;
+        textureDesc.keepInitialState = true;
+        textureDesc.debugName = "LdrColor";
+        textureDesc.isUAV = false;
+        textureDesc.isRenderTarget = true;
+        textureDesc.format = nvrhi::Format::SRGBA8_UNORM;
+        textureDesc.width = size.x;
+        textureDesc.height = size.y;
+        textureDesc.sampleCount = sampleCount;
+        LdrColor = device->createTexture(textureDesc);
+
+        LdrFramebuffer = std::make_shared<engine::FramebufferFactory>(device);
+        LdrFramebuffer->RenderTargets = { LdrColor };
+
+        HdrFramebuffer = std::make_shared<engine::FramebufferFactory>(device);
+        HdrFramebuffer->RenderTargets = { HdrColor };
+    
     }
 
     [[nodiscard]] bool IsUpdateRequired(uint2 size, uint sampleCount) const
@@ -93,6 +120,8 @@ private:
 
     std::unique_ptr<render::SkyPass> m_SkyPass;
     std::shared_ptr<engine::DirectionalLight> m_DirectionalLight;
+
+    std::unique_ptr<render::ToneMappingPass> m_ToneMappingPass;
 
     // Terrain Geometry Pass
     std::unique_ptr<vRenderer::TerrainPass> m_TerrainPass;
@@ -286,12 +315,18 @@ public:
 
     void Animate(float seconds) override
     {
+        MICROPROFILE_SCOPEI("vRenderer", "Animate", MP_YELLOW);
+
         m_FirstPersonCamera.Animate(seconds);
+        if (m_ToneMappingPass)
+            m_ToneMappingPass->AdvanceFrame(seconds);
         GetDeviceManager()->SetInformativeWindowTitle(g_WindowTitle);
     }
 
     virtual void RenderScene(nvrhi::IFramebuffer* framebuffer) override
     {
+        MICROPROFILE_SCOPEI("vRenderer", "RenderScene", MP_YELLOW);
+
         if (m_Scene->GetSceneGraph().get())
             m_Scene->RefreshSceneGraph(GetFrameIndex()); // Updates transforms and states of scene graph nodes
 
@@ -306,6 +341,7 @@ public:
             m_GBufferPass.reset();
             m_DeferredLightingPass->ResetBindingCache();
             m_SkyPass.reset();
+            m_ToneMappingPass.reset();
 
             m_RenderTargets = std::make_unique<RenderTargets>();
             m_RenderTargets->Init(GetDevice(), math::uint2(fbinfo.width, fbinfo.height), sampleCount, false, false);
@@ -315,7 +351,13 @@ public:
 
         if (!m_SkyPass)
             m_SkyPass = std::make_unique<render::SkyPass>(GetDevice(), m_ShaderFactory, m_CommonPasses, m_RenderTargets->GBufferFramebuffer, m_View);
-        
+
+        ToneMappingPass::CreateParameters toneMappingParams;
+
+        if (!m_ToneMappingPass)
+        {
+            m_ToneMappingPass = std::make_unique<render::ToneMappingPass>(GetDevice(), m_ShaderFactory, m_CommonPasses, m_RenderTargets->LdrFramebuffer, m_View, toneMappingParams);
+        }
         if (!m_GBufferPass)
         {
             render::GBufferFillPass::CreateParameters gbufferParams;
@@ -331,7 +373,6 @@ public:
         m_RenderTargets->Clear(m_CommandList);
 
         m_DirectionalLight->SetDirection(dm::normalize(dm::double3(m_UIData.m_SunDir[0], m_UIData.m_SunDir[1], m_UIData.m_SunDir[2])));
-        m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
 
         render::GBufferFillPass::Context context;
 
@@ -360,6 +401,8 @@ public:
             &m_View,
             *m_RenderTargets->GBufferFramebuffer,
             renderParams);
+        
+        m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
 
         if (m_Scene->GetSceneGraph().get())
         {
@@ -368,16 +411,22 @@ public:
             deferredInputs.ambientColorTop = 0.2f;
             deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
             deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
-            deferredInputs.output = m_RenderTargets->ShadedColor;
+            deferredInputs.output = m_RenderTargets->HdrColor;
 
             m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
         }
 
-        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, 
-            m_UIData.m_Wireframe ? m_RenderTargets->GBufferDiffuse : m_RenderTargets->ShadedColor, m_BindingCache.get());
+        m_ToneMappingPass->SimpleRender(m_CommandList, ToneMappingParameters(), m_View, m_RenderTargets->HdrColor);
+
+        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->LdrColor, m_BindingCache.get());
+
+        //m_CommonPasses->BlitTexture(m_CommandList, framebuffer, 
+        //    m_UIData.m_Wireframe ? m_RenderTargets->GBufferDiffuse : m_RenderTargets->HdrColor, m_BindingCache.get());
 
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);
+
+        MicroProfileFlip(0);
     }
 };
 

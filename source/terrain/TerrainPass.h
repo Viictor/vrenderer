@@ -141,6 +141,6 @@ namespace vRenderer
 		void SetupInputBuffers(GeometryPassContext& context, const engine::BufferGroup* buffers, nvrhi::GraphicsState& state) override;
 		void SetPushConstants(GeometryPassContext& context, nvrhi::ICommandList* commandList, nvrhi::GraphicsState& state, nvrhi::DrawArguments& args) override { }
 
-		const std::shared_ptr<QuadTree>& const GetQuadTree() { return m_QuadTree; };
+		const std::shared_ptr<QuadTree> GetQuadTree() { return m_QuadTree; };
 	};
 }

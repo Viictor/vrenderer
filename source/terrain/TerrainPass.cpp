@@ -265,7 +265,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
 
 		auto nodes = m_QuadTree->GetSelectedNodes();
-		m_UIData.m_NumChunks = nodes.size();
+		m_UIData.m_NumChunks = uint32_t(nodes.size());
 		assert(int(nodes.size()) < MAX_INSTANCES);
 		{
 			Context passContext;
@@ -288,7 +288,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 				nvrhi::DrawArguments args;
 				args.vertexCount = m_MeshInfo->geometries[0]->numIndices;
-				args.instanceCount = nodes.size();
+				args.instanceCount = uint32_t(nodes.size());
 				args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
 				args.startInstanceLocation = 0;// m_MeshInstance->GetInstanceIndex();
 

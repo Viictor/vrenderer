@@ -174,13 +174,16 @@ float2 QuadTree::GetMinMaxHeightValue(float2 _Position, float width, float heigh
 
 	float2 maxV = minV + float2(width, height) * m_TexelSize;
 
+	int2 limitX = int2(int(minV.x), int(maxV.x));
+	int2 limitY = int2(int(minV.y), int(maxV.y));
+
 	float2 minMax = float2(infinity, -infinity);
-	for (int i = minV.x; i < maxV.x; i++)
+	for (int i = limitX.x; i < limitX.y; i++)
 	{
-		for (int j = minV.y; j < maxV.y; j++)
+		for (int j = limitY.x; j < limitY.y; j++)
 		{
-			minMax.x = min(minMax.x, GetHeightValue(float2(i,j)));
-			minMax.y = max(minMax.y, GetHeightValue(float2(i,j)));
+			minMax.x = min(minMax.x, GetHeightValue(float2(float(i),float(j))));
+			minMax.y = max(minMax.y, GetHeightValue(float2(float(i),float(j))));
 		}
 	}
 	return minMax;
@@ -188,7 +191,7 @@ float2 QuadTree::GetMinMaxHeightValue(float2 _Position, float width, float heigh
 
 void QuadTree::SetHeight(Node* _Node, int _NumSplits)
 {
-	float2 minMax = GetMinMaxHeightValue(float2(_Node->m_Position.x, _Node->m_Position.z), _Node->m_Extents.x * 2.0, _Node->m_Extents.z * 2.0);
+	float2 minMax = GetMinMaxHeightValue(float2(_Node->m_Position.x, _Node->m_Position.z), _Node->m_Extents.x * 2.0f, _Node->m_Extents.z * 2.0f);
 
 	float extent = (minMax.y - minMax.x) / 2.0f;
 
@@ -234,6 +237,6 @@ void QuadTree::InitLodRanges()
 	float minLodDistance = 4.0f;
 	for (int i = 0; i < MAX_LODS; i++)
 	{
-		m_LodRanges[i] = minLodDistance * pow(2.0f, i);
+		m_LodRanges[i] = minLodDistance * pow(2.0f, float(i));
 	}
 }
