@@ -57,7 +57,7 @@ public:
 
 		ImGui::DragFloat3("Sun Dir", m_UIData.m_SunDir, 0.01f, -1.0f, 1.0f);
 
-		ImGui::Text("Num Cunks : %i", m_UIData.m_NumChunks);
+		ImGui::Text("Num instances : %i", m_UIData.m_NumChunks);
 
 		ImGui::End();
 	}
