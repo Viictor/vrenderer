@@ -1,4 +1,5 @@
 # vrenderer
  Rendering playground based on Donut
  
-![Screenshot 2023-12-24 140355](https://github.com/Viictor/vrenderer/assets/5459196/aca8ac47-8810-4d6e-b549-658cf05ef136)
+![image](https://github.com/Viictor/vrenderer/assets/5459196/50f6feb6-7c3a-4aff-9514-25d63edd8740)
+
