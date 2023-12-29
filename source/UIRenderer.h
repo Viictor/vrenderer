@@ -6,6 +6,8 @@
 #include <donut/app/imgui_renderer.h>
 #include <donut/core/vfs/VFS.h>
 
+#include "profiler/Profiler.h"
+
 using namespace donut::app;
 
 struct UIData
@@ -15,6 +17,7 @@ struct UIData
 	float m_MaxHeight = 10.0f;
 	float m_SunDir[3] = { 0.1f ,-0.4f , 0.1f };
 	uint32_t m_NumChunks = 0;
+	bool m_ProfilerOpen = true;
 };
 
 class UIRenderer : public donut::app::ImGui_Renderer
@@ -39,12 +42,28 @@ public:
 		m_FontDroidMono = this->LoadFont(*rootFS, "/media/fonts/DroidSans/DroidSans-Mono.ttf", 14.f);
 
 		ImGui::GetIO().IniFilename = nullptr;
+
+		ImGuiIO& io = ImGui::GetIO();
+		io.KeyMap[ImGuiKey_Space] = GLFW_KEY_SPACE;
 	}
 
 	void UIRenderer::buildUI(void) override
 	{
+		PROFILE_CPU_SCOPE();
+
 		ImGui::SetNextWindowPos(ImVec2(10.f, 10.f), 0);
-		ImGui::Begin("Settings", 0, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::Begin("Settings", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar);
+
+		if (ImGui::BeginMenuBar())
+		{
+			if (ImGui::BeginMenu("Menu"))
+			{
+				ImGui::MenuItem("Profiler", NULL, &m_UIData.m_ProfilerOpen);
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenuBar();
+		}
+
 		ImGui::Text("Renderer: %s", GetDeviceManager()->GetRendererString());
 		double frameTime = GetDeviceManager()->GetAverageFrameTimeSeconds();
 		if (frameTime > 0.0)
@@ -60,5 +79,16 @@ public:
 		ImGui::Text("Num instances : %i", m_UIData.m_NumChunks);
 
 		ImGui::End();
+
+		if (m_UIData.m_ProfilerOpen)
+		{
+
+			ImVec2 viewportSize = ImGui::GetMainViewport()->WorkSize;
+			ImGui::SetNextWindowPos(ImVec2(380.f, 10.f), 0);
+			ImGui::SetNextWindowSize(ImVec2(viewportSize.x - 390.0f, 290.0f));
+			ImGui::Begin("Profiler", &m_UIData.m_ProfilerOpen, ImGuiWindowFlags_NoResize);
+			DrawProfilerHUD();
+			ImGui::End();
+		}
 	}
 };

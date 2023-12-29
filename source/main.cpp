@@ -3,30 +3,28 @@
 #include <donut/app/Camera.h>
 #include <donut/core/vfs/VFS.h>
 #include <donut/core/log.h>
+#include <donut/engine/FramebufferFactory.h>
 #include <donut/engine/ShaderFactory.h>
 #include <donut/engine/TextureCache.h>
 #include <donut/engine/CommonRenderPasses.h>
 #include <donut/engine/Scene.h>
+#include <donut/engine/SceneGraph.h>
 #include <nvrhi/utils.h>
+#include <taskflow/taskflow.hpp>
 
 #include <donut/render/DeferredLightingPass.h>
 #include <donut/render/GBuffer.h>
 #include <donut/render/GBufferFillPass.h>
 #include <donut/render/DrawStrategy.h>
 #include <donut/render/GeometryPasses.h>
-#include <donut/engine/FramebufferFactory.h>
-
 #include <donut/render/SkyPass.h>
 #include <donut/render/ToneMappingPasses.h>
-
-#include <donut/engine/SceneGraph.h>
 
 #include "UIRenderer.h"
 #include "terrain/TerrainPass.h"
 #include "terrain/QuadTree.h"
-#include <taskflow/taskflow.hpp>
 
-#include "microprofile/microprofile.h"
+#include "profiler/Profiler.h"
 
 using namespace donut;
 using namespace donut::math;
@@ -280,7 +278,6 @@ public:
     {
         if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
         {
-            m_Executor.wait_for_all();
             glfwSetWindowShouldClose(GetDeviceManager()->GetWindow(), true);
         }
         m_FirstPersonCamera.KeyboardUpdate(key, scancode, action, mods);
@@ -302,7 +299,7 @@ public:
 
     void Animate(float seconds) override
     {
-        MICROPROFILE_SCOPEI("vRenderer", "Animate", MP_YELLOW);
+        PROFILE_CPU_SCOPE();
 
         m_FirstPersonCamera.Animate(seconds);
         if (m_ToneMappingPass)
@@ -312,7 +309,7 @@ public:
 
     virtual void RenderScene(nvrhi::IFramebuffer* framebuffer) override
     {
-        MICROPROFILE_SCOPEI("vRenderer", "RenderScene", MP_YELLOW);
+        PROFILE_CPU_SCOPE();
 
         if (m_Scene->GetSceneGraph().get())
             m_Scene->RefreshSceneGraph(GetFrameIndex()); // Updates transforms and states of scene graph nodes
@@ -354,8 +351,12 @@ public:
 
         m_CommandList->open();
 
+        PROFILE_GPU_BEGIN(m_CommandList, "Scene Refresh");
+
         if (m_Scene->GetSceneGraph().get())
             m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
+
+        PROFILE_GPU_END(m_CommandList);
 
         m_RenderTargets->Clear(m_CommandList);
 
@@ -365,6 +366,7 @@ public:
 
         if (m_Scene->GetSceneGraph().get())
         {
+            PROFILE_GPU_SCOPE(m_CommandList, "GBuffer fill");
             render::RenderCompositeView(
                 m_CommandList,
                 &m_View,
@@ -378,6 +380,7 @@ public:
                 true);
         }
 
+        PROFILE_GPU_BEGIN(m_CommandList, "Terrain");
         vRenderer::TerrainPass::RenderParams renderParams;
         renderParams.wireframe = m_UIData.m_Wireframe;
         renderParams.lockView = m_UIData.m_LockView;
@@ -389,10 +392,15 @@ public:
             *m_RenderTargets->GBufferFramebuffer,
             renderParams);
         
+        PROFILE_GPU_END(m_CommandList);
+
+        PROFILE_GPU_BEGIN(m_CommandList, "Sky");
         m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
+        PROFILE_GPU_END(m_CommandList);
 
         if (m_Scene->GetSceneGraph().get())
         {
+            PROFILE_GPU_SCOPE(m_CommandList, "Deferred Lighting");
             render::DeferredLightingPass::Inputs deferredInputs;
             deferredInputs.SetGBuffer(*m_RenderTargets);
             deferredInputs.ambientColorTop = 0.2f;
@@ -403,7 +411,9 @@ public:
             m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
         }
 
+        PROFILE_GPU_BEGIN(m_CommandList, "ToneMapping");
         m_ToneMappingPass->SimpleRender(m_CommandList, ToneMappingParameters(), m_View, m_RenderTargets->HdrColor);
+        PROFILE_GPU_END(m_CommandList);
 
         m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->LdrColor, m_BindingCache.get());
 
@@ -411,9 +421,11 @@ public:
         //    m_UIData.m_Wireframe ? m_RenderTargets->GBufferDiffuse : m_RenderTargets->HdrColor, m_BindingCache.get());
 
         m_CommandList->close();
+
+        Span<nvrhi::CommandListHandle> cmdlists((nvrhi::CommandListHandle*)&m_CommandList, 1);
+        PROFILE_EXECUTE_COMMANDLISTS(cmdlists);
         GetDevice()->executeCommandList(m_CommandList);
 
-        MicroProfileFlip(0);
     }
 };
 
@@ -439,6 +451,10 @@ int main(int __argc, const char** __argv)
         return 1;
     }
 
+    const uint32_t numFramesToProfile = 10;
+    gCPUProfiler.Initialize(numFramesToProfile, 1024);
+    gGPUProfiler.Initialize(deviceManager->GetDevice(), 1, numFramesToProfile, 3, 1024, 128, 32);
+    
     {
         UIData uiData;
         tf::Executor executor;
@@ -450,9 +466,40 @@ int main(int __argc, const char** __argv)
         deviceManager->AddRenderPassToBack(vRenderer.get());
         deviceManager->AddRenderPassToBack(gui.get());
 
+        deviceManager->m_callbacks.beforeFrame = [](DeviceManager&) 
+            {
+                PROFILE_FRAME();
+            };
+        deviceManager->m_callbacks.beforeAnimate = [](DeviceManager&)
+            {
+                PROFILE_CPU_BEGIN("Animate");
+            };
+        deviceManager->m_callbacks.afterAnimate = [](DeviceManager&)
+            {
+                PROFILE_CPU_END();
+            };
+        deviceManager->m_callbacks.beforeRender = [](DeviceManager&)
+            {
+                PROFILE_CPU_BEGIN("Render");
+            };
+        deviceManager->m_callbacks.afterRender = [](DeviceManager&)
+            {
+                PROFILE_CPU_END();
+            };
+        deviceManager->m_callbacks.beforePresent = [](DeviceManager&)
+            {
+                PROFILE_CPU_BEGIN("Present");
+            };
+        deviceManager->m_callbacks.afterPresent = [](DeviceManager&)
+            {
+                PROFILE_CPU_END();
+            };
         deviceManager->RunMessageLoop();
+        
+        executor.wait_for_all();
     }
 
+    gCPUProfiler.Shutdown();
     deviceManager->Shutdown();
 
     delete deviceManager;
