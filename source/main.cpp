@@ -350,76 +350,76 @@ public:
         }
 
         m_CommandList->open();
-
-        PROFILE_GPU_BEGIN(m_CommandList, "Scene Refresh");
-
-        if (m_Scene->GetSceneGraph().get())
-            m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
-
-        PROFILE_GPU_END(m_CommandList);
-
-        m_RenderTargets->Clear(m_CommandList);
-
-        m_DirectionalLight->SetDirection(dm::normalize(dm::double3(m_UIData.m_SunDir[0], m_UIData.m_SunDir[1], m_UIData.m_SunDir[2])));
-
-        render::GBufferFillPass::Context context;
-
-        if (m_Scene->GetSceneGraph().get())
         {
-            PROFILE_GPU_SCOPE(m_CommandList, "GBuffer fill");
-            render::RenderCompositeView(
+            PROFILE_GPU_SCOPE(m_CommandList, "GPU Frame");
+
+            PROFILE_GPU_BEGIN(m_CommandList, "Scene Refresh");
+            if (m_Scene->GetSceneGraph().get())
+                m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
+            PROFILE_GPU_END(m_CommandList);
+
+            m_RenderTargets->Clear(m_CommandList);
+
+            m_DirectionalLight->SetDirection(dm::normalize(dm::double3(m_UIData.m_SunDir[0], m_UIData.m_SunDir[1], m_UIData.m_SunDir[2])));
+
+            render::GBufferFillPass::Context context;
+
+            if (m_Scene->GetSceneGraph().get())
+            {
+                PROFILE_GPU_SCOPE(m_CommandList, "GBuffer fill");
+                render::RenderCompositeView(
+                    m_CommandList,
+                    &m_View,
+                    &m_View,
+                    *m_RenderTargets->GBufferFramebuffer,
+                    m_Scene->GetSceneGraph()->GetRootNode(),
+                    *m_OpaqueDrawStrategy,
+                    *m_GBufferPass,
+                    context,
+                    "GBufferFill",
+                    true);
+            }
+
+            PROFILE_GPU_BEGIN(m_CommandList, "Terrain");
+            vRenderer::TerrainPass::RenderParams renderParams;
+            renderParams.wireframe = m_UIData.m_Wireframe;
+            renderParams.lockView = m_UIData.m_LockView;
+
+            m_TerrainPass->Render(
                 m_CommandList,
                 &m_View,
                 &m_View,
                 *m_RenderTargets->GBufferFramebuffer,
-                m_Scene->GetSceneGraph()->GetRootNode(),
-                *m_OpaqueDrawStrategy,
-                *m_GBufferPass,
-                context,
-                "GBufferFill",
-                true);
+                renderParams);
+
+            PROFILE_GPU_END(m_CommandList);
+
+            PROFILE_GPU_BEGIN(m_CommandList, "Sky");
+            m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
+            PROFILE_GPU_END(m_CommandList);
+
+            if (m_Scene->GetSceneGraph().get())
+            {
+                PROFILE_GPU_SCOPE(m_CommandList, "Deferred Lighting");
+                render::DeferredLightingPass::Inputs deferredInputs;
+                deferredInputs.SetGBuffer(*m_RenderTargets);
+                deferredInputs.ambientColorTop = 0.2f;
+                deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
+                deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
+                deferredInputs.output = m_RenderTargets->HdrColor;
+
+                m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
+            }
+
+            PROFILE_GPU_BEGIN(m_CommandList, "ToneMapping");
+            m_ToneMappingPass->SimpleRender(m_CommandList, ToneMappingParameters(), m_View, m_RenderTargets->HdrColor);
+            PROFILE_GPU_END(m_CommandList);
+
+            m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->LdrColor, m_BindingCache.get());
+
+            //m_CommonPasses->BlitTexture(m_CommandList, framebuffer, 
+            //    m_UIData.m_Wireframe ? m_RenderTargets->GBufferDiffuse : m_RenderTargets->HdrColor, m_BindingCache.get());
         }
-
-        PROFILE_GPU_BEGIN(m_CommandList, "Terrain");
-        vRenderer::TerrainPass::RenderParams renderParams;
-        renderParams.wireframe = m_UIData.m_Wireframe;
-        renderParams.lockView = m_UIData.m_LockView;
-
-        m_TerrainPass->Render(
-            m_CommandList,
-            &m_View,
-            &m_View,
-            *m_RenderTargets->GBufferFramebuffer,
-            renderParams);
-        
-        PROFILE_GPU_END(m_CommandList);
-
-        PROFILE_GPU_BEGIN(m_CommandList, "Sky");
-        m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
-        PROFILE_GPU_END(m_CommandList);
-
-        if (m_Scene->GetSceneGraph().get())
-        {
-            PROFILE_GPU_SCOPE(m_CommandList, "Deferred Lighting");
-            render::DeferredLightingPass::Inputs deferredInputs;
-            deferredInputs.SetGBuffer(*m_RenderTargets);
-            deferredInputs.ambientColorTop = 0.2f;
-            deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
-            deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
-            deferredInputs.output = m_RenderTargets->HdrColor;
-
-            m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
-        }
-
-        PROFILE_GPU_BEGIN(m_CommandList, "ToneMapping");
-        m_ToneMappingPass->SimpleRender(m_CommandList, ToneMappingParameters(), m_View, m_RenderTargets->HdrColor);
-        PROFILE_GPU_END(m_CommandList);
-
-        m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->LdrColor, m_BindingCache.get());
-
-        //m_CommonPasses->BlitTexture(m_CommandList, framebuffer, 
-        //    m_UIData.m_Wireframe ? m_RenderTargets->GBufferDiffuse : m_RenderTargets->HdrColor, m_BindingCache.get());
-
         m_CommandList->close();
 
         Span<nvrhi::CommandListHandle> cmdlists((nvrhi::CommandListHandle*)&m_CommandList, 1);
