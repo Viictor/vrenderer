@@ -18,6 +18,7 @@ struct UIData
 	float m_SunDir[3] = { 0.1f ,-0.4f , 0.1f };
 	uint32_t m_NumChunks = 0;
 	bool m_ProfilerOpen = true;
+	float m_ProfilerWindowHeight = 0.0f;
 };
 
 class UIRenderer : public donut::app::ImGui_Renderer
@@ -45,6 +46,12 @@ public:
 
 		ImGuiIO& io = ImGui::GetIO();
 		io.KeyMap[ImGuiKey_Space] = GLFW_KEY_SPACE;
+	}
+
+	virtual void Render(nvrhi::IFramebuffer* framebuffer) override 
+	{
+		PROFILE_CPU_SCOPE("ImGui_Renderer::Render");
+		ImGui_Renderer::Render(framebuffer);
 	}
 
 	void UIRenderer::buildUI(void) override
@@ -82,12 +89,12 @@ public:
 
 		if (m_UIData.m_ProfilerOpen)
 		{
-
+			
 			ImVec2 viewportSize = ImGui::GetMainViewport()->WorkSize;
 			ImGui::SetNextWindowPos(ImVec2(380.f, 10.f), 0);
-			ImGui::SetNextWindowSize(ImVec2(viewportSize.x - 390.0f, 290.0f));
+			ImGui::SetNextWindowSize(ImVec2(viewportSize.x - 390.0f, donut::math::max(290.0f, m_UIData.m_ProfilerWindowHeight)));
 			ImGui::Begin("Profiler", &m_UIData.m_ProfilerOpen, ImGuiWindowFlags_NoResize);
-			DrawProfilerHUD();
+			DrawProfilerHUD(m_UIData.m_ProfilerWindowHeight);
 			ImGui::End();
 		}
 	}

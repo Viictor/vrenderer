@@ -9,8 +9,9 @@ struct StyleOptions
 	int MaxTime = 400;
 
 	float BarHeight = 25;
-	float BarPadding = 2;
+	float BarPadding = 0.5;
 	float ScrollBarSize = 15.0f;
+	float WindowHeight = 350.0f;
 
 	ImVec4 BarColorMultiplier = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 	ImVec4 BGTextColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
@@ -46,6 +47,7 @@ static void EditStyle(StyleOptions& style)
 	ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.7f);
 	ImGui::SliderInt("Depth", &style.MaxDepth, 1, 12);
 	ImGui::InputInt("Max Time", &style.MaxTime, 8, 66);
+	ImGui::InputFloat("Window Height", &style.WindowHeight, 10.0f);
 	ImGui::SliderFloat("Bar Height", &style.BarHeight, 8, 33);
 	ImGui::SliderFloat("Bar Padding", &style.BarPadding, 0, 5);
 	ImGui::SliderFloat("Scroll Bar Size", &style.ScrollBarSize, 1.0f, 40.0f);
@@ -536,10 +538,12 @@ static void DrawProfilerTimeline(const ImVec2& size = ImVec2(0, 0))
 	}
 }
 
-void DrawProfilerHUD()
+void DrawProfilerHUD(float& windowHeight)
 {
 	HUDContext& context = Context();
 	StyleOptions& style = context.Style;
+
+	windowHeight = style.WindowHeight;
 
 	if (gCPUProfiler.IsPaused())
 		ImGui::Text("Paused");

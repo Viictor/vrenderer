@@ -39,6 +39,10 @@ struct URange
 #define WITH_PROFILING 1
 #endif
 
+#ifndef WITH_GPU_PROFILING
+#define WITH_GPU_PROFILING 1
+#endif
+
 #if WITH_PROFILING
 
 /*
@@ -52,12 +56,19 @@ struct URange
 
 /// Usage:
 //		PROFILE_FRAME()
-#define PROFILE_FRAME() gCPUProfiler.Tick(); gGPUProfiler.Tick()
+#define PROFILE_FRAME() gCPUProfiler.Tick()
+
+#if WITH_GPU_PROFILING
+#define PROFILE_FRAME_GPU() gGPUProfiler.Tick()
 
 /// Usage:
 ///		PROFILE_EXECUTE_COMMANDLISTS(ID3D12CommandQueue* pQueue, Span<ID3D12CommandLists*> commandLists)
 #define PROFILE_EXECUTE_COMMANDLISTS(cmdlists)	gGPUProfiler.ExecuteCommandLists(cmdlists)
 
+#else
+#define PROFILE_FRAME_GPU() 
+#define PROFILE_EXECUTE_COMMANDLISTS(cmdlists)
+#endif
 /*
 	CPU Profiling
 */
@@ -75,6 +86,7 @@ struct URange
 //		PROFILE_CPU_END()
 #define PROFILE_CPU_END()								gCPUProfiler.EndEvent()
 
+#if WITH_GPU_PROFILING
 /*
 	GPU Profiling
 */
@@ -91,7 +103,11 @@ struct URange
 // Usage:
 //		PROFILE_GPU_END(ID3D12GraphicsCommandList* pCommandList)
 #define PROFILE_GPU_END(cmdlist)						gGPUProfiler.EndEvent(cmdlist)
-
+#else
+#define PROFILE_GPU_SCOPE(...)
+#define PROFILE_GPU_BEGIN(...)
+#define PROFILE_GPU_END()
+#endif
 
 #else
 
@@ -160,7 +176,7 @@ private:
 	std::atomic<uint32> m_Offset;
 };
 
-void DrawProfilerHUD();
+void DrawProfilerHUD(float& windowHeight);
 
 //-----------------------------------------------------------------------------
 // [SECTION] GPU Profiler

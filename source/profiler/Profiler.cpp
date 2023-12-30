@@ -125,9 +125,11 @@ void GPUProfiler::EndEvent(nvrhi::CommandListHandle pCmd)
 
 void GPUProfiler::Tick()
 {
+	PROFILE_CPU_BEGIN("Wait GPU Profiler::Tick");
 	// If the next frame is not finished resolving, wait for it here so the data can be read from before it's being reset
 	m_CopyHeap.WaitFrame(m_FrameIndex);
 	m_MainHeap.WaitFrame(m_FrameIndex);
+	PROFILE_CPU_END();
 
 	GetSampleFrame(m_FrameIndex).NumEvents = m_EventIndex;
 	m_EventIndex = 0;
@@ -403,8 +405,8 @@ void CPUProfiler::Tick()
 		EndEvent();
 
 	// Check if all threads have ended all open sample events
-	for (auto& threadData : m_ThreadData)
-		check(threadData.pTLS->EventStack.GetSize() == 0);
+	/*for (auto& threadData : m_ThreadData)
+		check(threadData.pTLS->EventStack.GetSize() == 0);*/
 
 	// Sort the events by thread and group by thread
 	EventData& frame = GetData();

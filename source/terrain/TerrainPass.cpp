@@ -21,7 +21,7 @@ using namespace donut;
 
 #define MAX_INSTANCES 4096
 #define WORLD_SIZE 256.0f
-#define GRID_SIZE 32
+#define GRID_SIZE 32 // Change terrainPass.hlsl GRID_SIZE in morphVertex()
 
 struct TerrainPass::Resources
 {

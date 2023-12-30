@@ -309,6 +309,7 @@ public:
 
     virtual void RenderScene(nvrhi::IFramebuffer* framebuffer) override
     {
+        PROFILE_CPU_END(); // WAIT GPU EVENT
         PROFILE_CPU_SCOPE();
 
         if (m_Scene->GetSceneGraph().get())
@@ -445,6 +446,10 @@ int main(int __argc, const char** __argv)
     deviceParams.enableNvrhiValidationLayer = true;
 #endif
 
+    uint32_t numQueues = 1;
+    //deviceParams.enableComputeQueue = true; numQueues++;
+    //deviceParams.enableCopyQueue = true; numQueues++;
+
     if (!deviceManager->CreateWindowDeviceAndSwapChain(deviceParams, g_WindowTitle))
     {
         log::fatal("Cannot initialize a graphics device with the requested parameters");
@@ -453,7 +458,7 @@ int main(int __argc, const char** __argv)
 
     const uint32_t numFramesToProfile = 10;
     gCPUProfiler.Initialize(numFramesToProfile, 1024);
-    gGPUProfiler.Initialize(deviceManager->GetDevice(), 1, numFramesToProfile, 3, 1024, 128, 32);
+    gGPUProfiler.Initialize(deviceManager->GetDevice(), numQueues, numFramesToProfile, 2, 1024, 128, 32);
     
     {
         UIData uiData;
@@ -469,6 +474,7 @@ int main(int __argc, const char** __argv)
         deviceManager->m_callbacks.beforeFrame = [](DeviceManager&) 
             {
                 PROFILE_FRAME();
+                PROFILE_FRAME_GPU();
             };
         deviceManager->m_callbacks.beforeAnimate = [](DeviceManager&)
             {
@@ -481,6 +487,7 @@ int main(int __argc, const char** __argv)
         deviceManager->m_callbacks.beforeRender = [](DeviceManager&)
             {
                 PROFILE_CPU_BEGIN("Render");
+                PROFILE_CPU_BEGIN("Wait GPU");
             };
         deviceManager->m_callbacks.afterRender = [](DeviceManager&)
             {
