@@ -21,7 +21,7 @@ using namespace donut;
 
 #define MAX_INSTANCES 4096
 #define WORLD_SIZE 256.0f
-#define GRID_SIZE 32 // Change terrainPass.hlsl GRID_SIZE in morphVertex()
+#define GRID_SIZE 8 
 
 struct TerrainPass::Resources
 {
@@ -246,6 +246,7 @@ void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* c
 	TerrainParamsConstants paramsConstants = {};
 	paramsConstants.size = WORLD_SIZE;
 	paramsConstants.maxHeight = m_UIData.m_MaxHeight;
+	paramsConstants.gridSize = GRID_SIZE;
 
 	auto lodRanges = m_QuadTree->GetLodRanges();
 	for (int i = 0; i < lodRanges.size(); i++)

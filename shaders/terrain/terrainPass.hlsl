@@ -30,8 +30,7 @@ SamplerState s_HeightmapSampler : register(s0);
 //  - morphK:  morph value
 float2 morphVertex(float2 gridPos, float2 vertex, float morphK, float gridExtents)
 {
-    const float GRID_SIZE = 32.0; // Change TerrainPass.cpp GRID_SIZE
-    float2 fracPart = frac(gridPos * GRID_SIZE * 0.5) * 2.0 / GRID_SIZE;
+    float2 fracPart = frac(gridPos * c_TerrainParams.gridSize * 0.5) * 2.0 / c_TerrainParams.gridSize;
     return vertex - fracPart * gridExtents * morphK;
 }
 

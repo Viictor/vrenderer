@@ -19,7 +19,8 @@ struct TerrainParamsConstants
 {
 	float size;
 	float maxHeight;
-	float2 padding;
+	float gridSize;
+	float padding;
 	float4 lodRanges[12]; // same as QuadTree::MAX_LODS
 };
 
