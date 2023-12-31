@@ -1,5 +1,5 @@
 # vrenderer
- Rendering playground based on Donut
+Rendering playground based on the [Donut](https://github.com/NVIDIAGameWorks/donut/) framework
  
-![image](https://github.com/Viictor/vrenderer/assets/5459196/50f6feb6-7c3a-4aff-9514-25d63edd8740)
+![image](https://github.com/Viictor/vrenderer/assets/5459196/50436f6a-471d-4b3d-b2cf-44ece4901e08)
 
