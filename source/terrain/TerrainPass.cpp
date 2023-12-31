@@ -192,8 +192,6 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		Context passContext;
 		SetupView(passContext, commandList, view, viewPrev);
 
-		bool stateValid = false;
-
 		nvrhi::GraphicsState graphicsState;
 		graphicsState.framebuffer = framebuffer;
 		graphicsState.viewport = view->GetViewportState();
@@ -207,32 +205,21 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		{
 			commandList->setGraphicsState(graphicsState);
 
-			int instanceOffset = 0;
+			nvrhi::DrawArguments args;
+			args.vertexCount = m_MeshInfo->geometries[0]->numIndices;
+			args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
+			args.startIndexLocation = m_MeshInfo->indexOffset + m_MeshInfo->geometries[0]->indexOffsetInMesh;
+			args.startInstanceLocation = 0;
+
 			for (int i = 0; i < m_QuadTrees.size(); i++)
 			{
 				const std::shared_ptr<QuadTree>& quadTree = m_QuadTrees[i];
-				auto nodes = quadTree->GetSelectedNodes();
-				m_UIData.m_NumChunks += uint32_t(nodes.size());
+				int numNodes = int(quadTree->GetSelectedNodes().size());
 
-				assert(int(nodes.size()) < MAX_INSTANCES);
-
-				if (nodes.size() > 0)
-				{
-					nvrhi::DrawArguments args;
-					args.vertexCount = m_MeshInfo->geometries[0]->numIndices;
-					args.instanceCount = uint32_t(nodes.size());
-					args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
-					args.startInstanceLocation = instanceOffset;
-
-					args.startIndexLocation = m_MeshInfo->indexOffset + m_MeshInfo->geometries[0]->indexOffsetInMesh;
-
-					SetPushConstants(passContext, commandList, graphicsState, args);
-
-					commandList->drawIndexed(args);
-
-					instanceOffset += int(nodes.size());
-				}
+				m_UIData.m_NumChunks += numNodes;
+				args.instanceCount += numNodes;
 			}
+			commandList->drawIndexed(args);
 		}
 	}
 
@@ -241,7 +228,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 void vRenderer::TerrainPass::UpdateTransforms(const std::shared_ptr<QuadTree> quadTree, const int instanceDataOffset)
 {
-	auto nodes = quadTree->GetSelectedNodes();
+	auto& nodes = quadTree->GetSelectedNodes();
 	assert(int(nodes.size()) < MAX_INSTANCES);
 
 	for (int i = 0; i < nodes.size(); i++)
