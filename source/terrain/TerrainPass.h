@@ -89,7 +89,7 @@ namespace vRenderer
 		RenderParams m_RenderParams;
 		UIData& m_UIData;
 
-		std::shared_ptr<QuadTree> m_QuadTree;
+		std::vector<std::shared_ptr<QuadTree>> m_QuadTrees;
 
 		// Terrain Geometry
 		std::shared_ptr<engine::BufferGroup> m_Buffers;
@@ -129,7 +129,7 @@ namespace vRenderer
 			const RenderParams& renderParams
 		);
 
-		void Update(nvrhi::ICommandList* commandList);
+		void UpdateTransforms(const std::shared_ptr<QuadTree> quadTree, const int instanceDataOffset);
 
 		// IGeometryPass implementation
 		[[nodiscard]] engine::ViewType::Enum GetSupportedViewTypes() const override;
@@ -137,7 +137,5 @@ namespace vRenderer
 		bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state) override;
 		void SetupInputBuffers(GeometryPassContext& context, const engine::BufferGroup* buffers, nvrhi::GraphicsState& state) override;
 		void SetPushConstants(GeometryPassContext& context, nvrhi::ICommandList* commandList, nvrhi::GraphicsState& state, nvrhi::DrawArguments& args) override { }
-
-		const std::shared_ptr<QuadTree> GetQuadTree() { return m_QuadTree; };
 	};
 }

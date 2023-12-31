@@ -17,10 +17,10 @@ struct TerrainLightConstants
 
 struct TerrainParamsConstants
 {
-	float size;
+	float worldSize;
+	float surfaceSize;
 	float maxHeight;
 	float gridSize;
-	float padding;
 	float4 lodRanges[12]; // same as QuadTree::MAX_LODS
 };
 

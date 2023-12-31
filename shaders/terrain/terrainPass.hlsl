@@ -47,18 +47,18 @@ float computeMorphK(float distance, float gridExtents)
 
 float sampleHeight(float2 worldPos)
 {
-    const float halfSize = c_TerrainParams.size * 0.5;
-    float2 uv = (worldPos + halfSize) / c_TerrainParams.size;
+    const float halfSize = c_TerrainParams.worldSize * 0.5;
+    float2 uv = (worldPos + halfSize) / c_TerrainParams.worldSize;
     
     return t_Heightmap.SampleLevel(s_HeightmapSampler, uv, 0).r * c_TerrainParams.maxHeight;
 }
 
 float sampleHeight(float2 worldPos, float2 offset)
 {
-    const float halfSize = c_TerrainParams.size * 0.5;
-    float2 uv = (worldPos + halfSize) / c_TerrainParams.size;
+    const float halfSize = c_TerrainParams.worldSize * 0.5;
+    float2 uv = (worldPos + halfSize) / c_TerrainParams.worldSize;
     
-    return t_Heightmap.Sample(s_HeightmapSampler, uv + offset / c_TerrainParams.size).r * c_TerrainParams.maxHeight;
+    return t_Heightmap.Sample(s_HeightmapSampler, uv + offset).r;
 }
 
 void main_vs(
@@ -71,9 +71,6 @@ void main_vs(
 )
 {
     float4 worldPos = float4(mul(i_instanceMatrix, float4(i_vtx.pos, 1.0)), 1.0);
-    //float height = sampleHeight(worldPos.xz);
-    //worldPos.y = height;
-    //worldPos = float4(mul(i_instanceMatrix, float4(i_vtx.pos.x, height, i_vtx.pos.z, 1.0)), 1.0);
     
     float distance = length(worldPos.xz - c_Terrain.view.matViewToWorld[3].xz);
     float gridExtents = 2.0 * length(float3(i_instanceMatrix[0].x, i_instanceMatrix[1].x, i_instanceMatrix[2].x));
@@ -83,7 +80,6 @@ void main_vs(
     worldPos.y = sampleHeight(worldPos.xz);
 
     o_debug = float3(worldPos.y, worldPos.y, worldPos.y) / c_TerrainParams.maxHeight;
-    //o_debug = float3(1, morphK, 1);
 
     o_vtx = i_vtx;
     o_vtx.pos = worldPos.xyz;
@@ -106,23 +102,18 @@ void main_ps(
 
     //MaterialSample surface = EvaluateSceneMaterial(i_vtx.normal, i_vtx.tangent, g_Material, textures);
     
-    float offset = 1;
+    float offset = 0.0001;
     float hDx = sampleHeight(i_vtx.pos.xz, float2(offset, 0.0)) - sampleHeight(i_vtx.pos.xz, float2(-offset, 0.0));
     float hDy = sampleHeight(i_vtx.pos.xz, float2(0.0, offset)) - sampleHeight(i_vtx.pos.xz ,float2(0.0, -offset));
     
-    float3 normal = normalize(float3(hDx, 1.0, hDy));
+    float3 normal = normalize(float3(hDx, 2.0 * offset, hDy));
+    //normal = -normalize(cross(ddx(i_vtx.pos), ddy(i_vtx.pos)));
     
-    //o_channel0.xyz = float3(i_vtx.pos.yyy / 20.f);
+    float height = i_vtx.pos.y / c_TerrainParams.maxHeight;
     
-    float3 green = float3(.1, .6, .1);
-    
-    
-    o_channel0.xyz = lerp(green, float3(5.0, 2.0, 3.0), pow(i_debug.x, 2.0)); // albedo
-    
-    //o_channel0.xyz = lerp(float3(227.0, 249.0, 136.0), float3(100.0, 65.0, 23.0), pow(i_debug.x, 1.0)) / 255.0;
-    
+    o_channel0.xyz = lerp(float3(.1, .6, .1), float3(5.0, 2.0, 3.0), pow(height, 2.0)); // albedo
     o_channel0.w = 1.0; //opacity
-    o_channel1.xyz = float3(1.0, 1.0, 1.0)*0.3; // specular f0
+    o_channel1.xyz = float3(1.0, 1.0, 1.0)*0.1; // specular f0
     o_channel1.w = 1.0; // occlusion
     o_channel2.xyz = normal; //normal
     o_channel2.w = 1.0; // roughness

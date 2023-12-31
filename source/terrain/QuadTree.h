@@ -69,9 +69,11 @@ private:
 	std::array<float, MAX_LODS> m_LodRanges;
 	HeightmapData m_HeightmapData;
 
+	float3 m_Location;
 	int m_NumLods;
 	float m_Width;
 	float m_Height;
+	float m_WorldSize;
 	float2 m_TexelSize;
 
 	float GetHeightValue(float2 position);
@@ -84,8 +86,8 @@ private:
 	void InitLodRanges();
 
 public:
-	QuadTree(const float width, const float height) 
-		: m_Width(width), m_Height(height) 
+	QuadTree(const float width, const float height,  float worldSize, const float3 location = float3(0.0f, 0.0f, 0.0f)) 
+		: m_Width(width), m_Height(height), m_Location(location), m_WorldSize(worldSize)
 	{
 		InitLodRanges();
 	};

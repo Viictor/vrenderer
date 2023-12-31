@@ -163,8 +163,8 @@ public:
         m_CommandList = GetDevice()->createCommandList();
 
 
-        m_UIData.m_MaxHeight = 30.0f;
-        std::filesystem::path textureFileName ="/media/Heightmap_01_Mountains.png";
+        m_UIData.m_MaxHeight = 120.0f;
+        std::filesystem::path textureFileName ="/media/Heightmap_01_Mountains4k.png";
         std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
 
         m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice(), m_CommonPasses, m_UIData);
@@ -193,15 +193,15 @@ public:
             //m_Scene->GetSceneGraph()->SetRootNode(node);
         }
 
-        m_FirstPersonCamera.LookAt(float3(.0f, 20.8f, .0f), float3(1.0f, 1.8f, .0f));
-        m_FirstPersonCamera.SetMoveSpeed(3.0f);
+        m_FirstPersonCamera.LookAt(float3(.0f, 120.8f, .0f), float3(1.0f, 1.8f, .0f));
+        m_FirstPersonCamera.SetMoveSpeed(10.0f);
 	}
 
     void SetupView()
     {
         float2 renderTargetSize = float2(m_RenderTargets->GetSize());
 
-        float4x4 projection = math::perspProjD3DStyle(math::radians(60.f), renderTargetSize.x / renderTargetSize.y, 0.1f, 1000.f);
+        float4x4 projection = math::perspProjD3DStyle(math::radians(60.f), renderTargetSize.x / renderTargetSize.y, 0.1f, 10000.f);
 
         m_View.SetViewport(nvrhi::Viewport(renderTargetSize.x, renderTargetSize.y));
         m_View.SetMatrices(m_FirstPersonCamera.GetWorldToViewMatrix(), projection);

@@ -15,20 +15,21 @@ void QuadTree::Init(std::shared_ptr<engine::LoadedTexture> loadedTexture, tf::Ex
 		m_HeightmapData.width = textureData->width;
 		m_HeightmapData.height = textureData->height;
 		m_HeightmapData.data = malloc(dataSize);
-		m_TexelSize = float2(m_HeightmapData.width / m_Width, m_HeightmapData.height / m_Height);
+		m_TexelSize = float2(m_HeightmapData.width / m_WorldSize, m_HeightmapData.height / m_WorldSize);
+
 		memcpy(m_HeightmapData.data, (void*)textureData->data->data(), dataSize);
 	}
 	else
 	{
 		m_HeightmapData.width = 0;
 		m_HeightmapData.height = 0;
-		m_TexelSize = float2(m_HeightmapData.width / m_Width, m_HeightmapData.height / m_Height);
+		m_TexelSize = float2(m_HeightmapData.width / m_WorldSize, m_HeightmapData.height / m_WorldSize);
 
 		log::error("Heightmap texture data missing for QuadTree generation");
 
 	}
 
-	m_RootNode = std::make_unique<Node>(float3(0.0f, 0.0, 0.0f), float3(m_Width / 2.0f, 0.0, m_Height / 2.0f));
+	m_RootNode = std::make_unique<Node>(m_Location, float3(m_Width / 2.0f, 0.0, m_Height / 2.0f));
 
 	int numSplits = 1;
 	Split(m_RootNode.get(), numSplits);
@@ -130,7 +131,7 @@ float QuadTree::GetHeightValue(float2 position)
 float2 QuadTree::GetMinMaxHeightValue(float2 position, float width, float height)
 {
 	float2 minV = position - float2(width / 2, height / 2);
-	minV += float2(m_Width / 2, m_Height / 2);
+	minV += float2(m_WorldSize / 2, m_WorldSize / 2);
 	minV *= m_TexelSize;
 
 	float2 maxV = minV + float2(width, height) * m_TexelSize;
@@ -172,10 +173,10 @@ void QuadTree::SetHeight(Node* node, int numSplits)
 void QuadTree::Split(Node* node, int numSplits)
 {
 	float3 extents = node->m_Extents / 2.0f;
-	float3 position0 = node->m_Position + float3(-extents.x, 0.0, extents.z);
+	float3 position0 = node->m_Position + float3(-extents.x, 0.0f, extents.z);
 	float3 position1 = node->m_Position + extents;
 	float3 position2 = node->m_Position - extents;
-	float3 position3 = node->m_Position - float3(-extents.x, 0.0, extents.z);
+	float3 position3 = node->m_Position - float3(-extents.x, 0.0f, extents.z);
 
 	node->m_Children[Node::TL] = new Node(position0, extents);
 	node->m_Children[Node::TR] = new Node(position1, extents);

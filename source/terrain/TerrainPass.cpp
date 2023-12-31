@@ -20,8 +20,9 @@ using namespace vRenderer;
 using namespace donut;
 
 #define MAX_INSTANCES 4096
-#define WORLD_SIZE 256.0f
-#define GRID_SIZE 8 
+#define SURFACE_SIZE 128.0f
+#define WORLD_SIZE 1024.0f
+#define GRID_SIZE 16 
 
 struct TerrainPass::Resources
 {
@@ -34,10 +35,22 @@ TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonR
 	, m_CommonPasses(std::move(commonPasses))
 	, m_UIData(uiData)
 {
-	m_QuadTree = std::make_shared<QuadTree>(WORLD_SIZE, WORLD_SIZE);
-
 	m_Resources = std::make_shared<Resources>();
 	m_Resources->instanceData.resize((MAX_INSTANCES));
+
+	const int numSurfacesPerSide = int(WORLD_SIZE / SURFACE_SIZE);
+	const int numSurfaces = numSurfacesPerSide * numSurfacesPerSide;
+	m_QuadTrees.resize(numSurfaces);
+	for (int i = 0; i < numSurfaces; i++)
+	{
+		int column = i % numSurfacesPerSide;
+		int row = i / numSurfacesPerSide;
+
+		float x = -0.5f * (numSurfacesPerSide - 1) + column;
+		float y = -0.5f * (numSurfacesPerSide - 1) + row;
+
+		m_QuadTrees[i] = std::make_shared<QuadTree>(SURFACE_SIZE, SURFACE_SIZE, WORLD_SIZE, float3(x * SURFACE_SIZE, 0.0f, y * SURFACE_SIZE));
+	}
 }
 
 void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture, tf::Executor& executor)
@@ -100,8 +113,10 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	m_Resources->heightmapTexture = heightmapTexture;
 	m_HeightmapBindingLayout = CreateHeightmapBindingLayout();
 	
-	m_QuadTree->Init(m_Resources->heightmapTexture, executor);
-
+	for (int i = 0; i < m_QuadTrees.size(); i++)
+	{
+		m_QuadTrees[i]->Init(m_Resources->heightmapTexture, executor);
+	}
 
 	commandList->open();
 
@@ -157,47 +172,66 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 		if (!m_RenderParams.lockView)
 		{
-			m_QuadTree->ClearSelectedNodes();
-			m_QuadTree->NodeSelect(float3(view->GetViewOrigin()), m_QuadTree->GetRootNode().get(), m_QuadTree->GetNumLods() - 1, view->GetViewFrustum(), m_UIData.m_MaxHeight);
+			int instanceDataOffset = 0;
+			m_UIData.m_NumChunks = 0;
+			for (int i = 0; i < m_QuadTrees.size(); i++)
+			{
+				const std::shared_ptr<QuadTree>& quadTree = m_QuadTrees[i];
 
-			Update(commandList);
+				quadTree->ClearSelectedNodes();
+				quadTree->NodeSelect(float3(view->GetViewOrigin()), quadTree->GetRootNode().get(), quadTree->GetNumLods() - 1, view->GetViewFrustum(), m_UIData.m_MaxHeight);
+
+				UpdateTransforms(quadTree, instanceDataOffset);
+
+				instanceDataOffset += int(quadTree->GetSelectedNodes().size());
+			}
+			commandList->writeBuffer(m_Buffers->instanceBuffer, m_Resources->instanceData.data(), m_Resources->instanceData.size() * sizeof(InstanceData));
 		}
 
 		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
+		Context passContext;
+		SetupView(passContext, commandList, view, viewPrev);
 
-		auto nodes = m_QuadTree->GetSelectedNodes();
-		m_UIData.m_NumChunks = uint32_t(nodes.size());
-		assert(int(nodes.size()) < MAX_INSTANCES);
+		bool stateValid = false;
+
+		nvrhi::GraphicsState graphicsState;
+		graphicsState.framebuffer = framebuffer;
+		graphicsState.viewport = view->GetViewportState();
+		graphicsState.shadingRateState = view->GetVariableRateShadingState();
+
+		SetupInputBuffers(passContext, m_Buffers.get(), graphicsState);
+
+		const bool drawMaterial = SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::Back, graphicsState);
+
+		if (drawMaterial)
 		{
-			Context passContext;
-			SetupView(passContext, commandList, view, viewPrev);
+			commandList->setGraphicsState(graphicsState);
 
-			bool stateValid = false;
-
-			nvrhi::GraphicsState graphicsState;
-			graphicsState.framebuffer = framebuffer;
-			graphicsState.viewport = view->GetViewportState();
-			graphicsState.shadingRateState = view->GetVariableRateShadingState();
-
-			SetupInputBuffers(passContext, m_Buffers.get(), graphicsState);
-
-			const bool drawMaterial = SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::Back, graphicsState);
-
-			if (drawMaterial)
+			int instanceOffset = 0;
+			for (int i = 0; i < m_QuadTrees.size(); i++)
 			{
-				commandList->setGraphicsState(graphicsState);
+				const std::shared_ptr<QuadTree>& quadTree = m_QuadTrees[i];
+				auto nodes = quadTree->GetSelectedNodes();
+				m_UIData.m_NumChunks += uint32_t(nodes.size());
 
-				nvrhi::DrawArguments args;
-				args.vertexCount = m_MeshInfo->geometries[0]->numIndices;
-				args.instanceCount = uint32_t(nodes.size());
-				args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
-				args.startInstanceLocation = 0;
+				assert(int(nodes.size()) < MAX_INSTANCES);
 
-				args.startIndexLocation = m_MeshInfo->indexOffset + m_MeshInfo->geometries[0]->indexOffsetInMesh;
-				
-				SetPushConstants(passContext, commandList, graphicsState, args);
+				if (nodes.size() > 0)
+				{
+					nvrhi::DrawArguments args;
+					args.vertexCount = m_MeshInfo->geometries[0]->numIndices;
+					args.instanceCount = uint32_t(nodes.size());
+					args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
+					args.startInstanceLocation = instanceOffset;
 
-				commandList->drawIndexed(args);
+					args.startIndexLocation = m_MeshInfo->indexOffset + m_MeshInfo->geometries[0]->indexOffsetInMesh;
+
+					SetPushConstants(passContext, commandList, graphicsState, args);
+
+					commandList->drawIndexed(args);
+
+					instanceOffset += int(nodes.size());
+				}
 			}
 		}
 	}
@@ -205,16 +239,15 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 	commandList->endMarker();
 }
 
-void vRenderer::TerrainPass::Update(nvrhi::ICommandList* commandList)
+void vRenderer::TerrainPass::UpdateTransforms(const std::shared_ptr<QuadTree> quadTree, const int instanceDataOffset)
 {
-	// Update Instances
-	auto nodes = m_QuadTree->GetSelectedNodes();
+	auto nodes = quadTree->GetSelectedNodes();
 	assert(int(nodes.size()) < MAX_INSTANCES);
 
 	for (int i = 0; i < nodes.size(); i++)
 	{
 		const Node* node = nodes[i];
-		InstanceData& idata = m_Resources->instanceData[i];
+		InstanceData& idata = m_Resources->instanceData[instanceDataOffset + i];
 
 		math::affine3 scale = math::scaling(node->m_Extents);
 		math::affine3 translation = math::translation(node->m_Position);
@@ -227,7 +260,6 @@ void vRenderer::TerrainPass::Update(nvrhi::ICommandList* commandList)
 		idata.padding = 0u;
 	}
 
-	commandList->writeBuffer(m_Buffers->instanceBuffer, m_Resources->instanceData.data(), m_Resources->instanceData.size() * sizeof(InstanceData));
 }
 
 engine::ViewType::Enum TerrainPass::GetSupportedViewTypes() const
@@ -244,11 +276,12 @@ void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* c
 	viewPrev->FillPlanarViewConstants(viewConstants.viewPrev);
 
 	TerrainParamsConstants paramsConstants = {};
-	paramsConstants.size = WORLD_SIZE;
+	paramsConstants.worldSize = WORLD_SIZE;
+	paramsConstants.surfaceSize = SURFACE_SIZE;
 	paramsConstants.maxHeight = m_UIData.m_MaxHeight;
 	paramsConstants.gridSize = GRID_SIZE;
 
-	auto lodRanges = m_QuadTree->GetLodRanges();
+	auto lodRanges = m_QuadTrees[0]->GetLodRanges();
 	for (int i = 0; i < lodRanges.size(); i++)
 	{
 		paramsConstants.lodRanges[i].x = lodRanges[i];
@@ -455,7 +488,7 @@ nvrhi::BufferHandle TerrainPass::CreateInstanceBuffer(nvrhi::IDevice* device)
 	nvrhi::BufferDesc bufferDesc;
 	bufferDesc.byteSize = sizeof(InstanceData) * m_Resources->instanceData.size();
 	bufferDesc.debugName = "Instances";
-	bufferDesc.structStride = /*m_EnableBindlessResources*/true ? sizeof(InstanceData) : 0;
+	bufferDesc.structStride = /*m_EnableBindlessResources*/false ? sizeof(InstanceData) : 0;
 	bufferDesc.canHaveRawViews = true;
 	bufferDesc.canHaveUAVs = true;
 	bufferDesc.isVertexBuffer = true;
