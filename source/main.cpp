@@ -76,6 +76,7 @@ public:
 
         LdrFramebuffer = std::make_shared<engine::FramebufferFactory>(device);
         LdrFramebuffer->RenderTargets = { LdrColor };
+        LdrFramebuffer->DepthTarget = Depth;
 
         HdrFramebuffer = std::make_shared<engine::FramebufferFactory>(device);
         HdrFramebuffer->RenderTargets = { HdrColor };
@@ -335,7 +336,7 @@ public:
         SetupView();
 
         if (!m_SkyPass)
-            m_SkyPass = std::make_unique<render::SkyPass>(GetDevice(), m_ShaderFactory, m_CommonPasses, m_RenderTargets->GBufferFramebuffer, m_View);
+            m_SkyPass = std::make_unique<render::SkyPass>(GetDevice(), m_ShaderFactory, m_CommonPasses, m_RenderTargets->LdrFramebuffer, m_View);
 
         ToneMappingPass::CreateParameters toneMappingParams;
 
@@ -395,10 +396,8 @@ public:
 
             PROFILE_GPU_END(m_CommandList);
 
-            PROFILE_GPU_BEGIN(m_CommandList, "Sky");
-            m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
-            PROFILE_GPU_END(m_CommandList);
-
+            
+            
             if (m_Scene->GetSceneGraph().get())
             {
                 PROFILE_GPU_SCOPE(m_CommandList, "Deferred Lighting");
@@ -412,8 +411,14 @@ public:
                 m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
             }
 
+            
+
             PROFILE_GPU_BEGIN(m_CommandList, "ToneMapping");
             m_ToneMappingPass->SimpleRender(m_CommandList, ToneMappingParameters(), m_View, m_RenderTargets->HdrColor);
+            PROFILE_GPU_END(m_CommandList);
+
+            PROFILE_GPU_BEGIN(m_CommandList, "Sky");
+            m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
             PROFILE_GPU_END(m_CommandList);
 
             m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->LdrColor, m_BindingCache.get());

@@ -38,6 +38,11 @@
           "name": "SHADERMAKE_FIND_FXC",
           "value": "False",
           "type": "BOOL"
+        },
+        {
+          "name": "NVRHI_WITH_DX11",
+          "value": "False",
+          "type": "BOOL"
         }
       ]
     }
