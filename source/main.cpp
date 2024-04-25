@@ -30,6 +30,8 @@ using namespace donut;
 using namespace donut::math;
 
 static const char* g_WindowTitle = "vRenderer";
+static bool g_WaitGPUEvent = false;
+
 
 class RenderTargets : public render::GBufferRenderTargets
 {
@@ -316,7 +318,11 @@ public:
 
     virtual void RenderScene(nvrhi::IFramebuffer* framebuffer) override
     {
-        PROFILE_CPU_END(); // WAIT GPU EVENT
+        if (g_WaitGPUEvent)
+        {
+            g_WaitGPUEvent = false;
+        	PROFILE_CPU_END(); // WAIT GPU EVENT
+        }
         PROFILE_CPU_SCOPE();
 
         if (m_Scene->GetSceneGraph().get())
@@ -470,7 +476,7 @@ int main(int __argc, const char** __argv)
     const uint32_t numFramesToProfile = 10;
     gCPUProfiler.Initialize(numFramesToProfile, 1024);
     gGPUProfiler.Initialize(deviceManager->GetDevice(), numQueues, numFramesToProfile, 2, 1024, 128, 32);
-    
+
     {
         UIData uiData;
         tf::Executor executor;
@@ -498,7 +504,12 @@ int main(int __argc, const char** __argv)
         deviceManager->m_callbacks.beforeRender = [](DeviceManager&)
             {
                 PROFILE_CPU_BEGIN("Render");
-                PROFILE_CPU_BEGIN("Wait GPU");
+
+                if (!g_WaitGPUEvent)
+                {
+                    g_WaitGPUEvent = true;
+                	PROFILE_CPU_BEGIN("Wait GPU");
+                }
             };
         deviceManager->m_callbacks.afterRender = [](DeviceManager&)
             {

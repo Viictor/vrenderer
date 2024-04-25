@@ -106,10 +106,11 @@ struct URange
 #else
 #define PROFILE_GPU_SCOPE(...)
 #define PROFILE_GPU_BEGIN(...)
-#define PROFILE_GPU_END()
+#define PROFILE_GPU_END(...)
 #endif
 
 #else
+#define PROFILE_FRAME_GPU() 
 
 #define PROFILE_REGISTER_THREAD(...)
 #define PROFILE_FRAME()
@@ -121,7 +122,7 @@ struct URange
 
 #define PROFILE_GPU_SCOPE(...)
 #define PROFILE_GPU_BEGIN(...)
-#define PROFILE_GPU_END()
+#define PROFILE_GPU_END(...)
 
 #endif
 
@@ -287,6 +288,9 @@ public:
 
 	URange GetFrameRange() const
 	{
+		if (m_GraphicsAPI != nvrhi::GraphicsAPI::D3D12)
+			return URange(0, 0);
+
 		uint32 begin = m_FrameIndex < m_EventHistorySize ? 0 : m_FrameIndex - (uint32)m_EventHistorySize;
 		uint32 end = m_FrameToReadback;
 		return URange(begin, end);
@@ -303,6 +307,9 @@ public:
 	void SetEventCallback(const GPUProfilerCallbacks& inCallbacks) { m_EventCallback = inCallbacks; }
 
 private:
+
+	nvrhi::GraphicsAPI m_GraphicsAPI;
+
 	struct QueryHeap
 	{
 	public:

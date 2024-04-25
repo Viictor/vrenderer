@@ -1,7 +1,6 @@
 
 #include "Profiler.h"
 
-#if WITH_PROFILING
 
 CPUProfiler gCPUProfiler;
 GPUProfiler gGPUProfiler;
@@ -19,6 +18,12 @@ void GPUProfiler::Initialize(
 	uint32						maxNumCopyEvents,
 	uint32						maxNumActiveCommandLists)
 {
+
+#if USE_DX12
+	m_GraphicsAPI = pDevice->getGraphicsAPI();
+	if (m_GraphicsAPI != nvrhi::GraphicsAPI::D3D12)
+		return;
+
 	m_FrameLatency = frameLatency;
 	m_EventHistorySize = sampleHistory;
 
@@ -56,20 +61,30 @@ void GPUProfiler::Initialize(
 		QueryData& queryData = m_pQueryData[i];
 		queryData.Ranges.resize(maxNumEvents + maxNumCopyEvents);
 	}
+#endif
 }
 
 void GPUProfiler::Shutdown()
 {
+#if USE_DX12
+	if (m_GraphicsAPI != nvrhi::GraphicsAPI::D3D12)
+		return;
+
 	delete[] m_pEventData;
 	delete[] m_pQueryData;
 
 	m_CopyHeap.Shutdown();
 	m_MainHeap.Shutdown();
+#endif
 }
 
 
 void GPUProfiler::BeginEvent(nvrhi::CommandListHandle pCmd, const char* pName, const char* pFilePath, uint32 lineNumber)
 {
+#if USE_DX12
+	if (m_GraphicsAPI != nvrhi::GraphicsAPI::D3D12)
+		return;
+
 	if (m_EventCallback.OnEventBegin)
 		m_EventCallback.OnEventBegin(pName, pCmd, m_EventCallback.pUserData);
 
@@ -104,11 +119,16 @@ void GPUProfiler::BeginEvent(nvrhi::CommandListHandle pCmd, const char* pName, c
 	event.pName = eventData.Allocator.String(pName);
 	event.pFilePath = pFilePath;
 	event.LineNumber = lineNumber;
+#endif
 }
 
 
 void GPUProfiler::EndEvent(nvrhi::CommandListHandle pCmd)
 {
+#if USE_DX12
+	if (m_GraphicsAPI != nvrhi::GraphicsAPI::D3D12)
+		return;
+
 	if (m_EventCallback.OnEventEnd)
 		m_EventCallback.OnEventEnd(pCmd, m_EventCallback.pUserData);
 
@@ -121,10 +141,15 @@ void GPUProfiler::EndEvent(nvrhi::CommandListHandle pCmd)
 	query.QueryIndex = GetHeap(pCmd->getDesc().queueType).RecordQuery(pCmd->getNativeObject(nvrhi::ObjectTypes::D3D12_GraphicsCommandList));
 	query.RangeIndex = 0x7FFF; // Range index is only required for 'Begin' events
 	query.IsBegin = false;
+#endif
 }
 
 void GPUProfiler::Tick()
 {
+#if USE_DX12
+	if (m_GraphicsAPI != nvrhi::GraphicsAPI::D3D12)
+		return;
+
 	PROFILE_CPU_BEGIN("Wait GPU Profiler::Tick");
 	// If the next frame is not finished resolving, wait for it here so the data can be read from before it's being reset
 	m_CopyHeap.WaitFrame(m_FrameIndex);
@@ -199,10 +224,14 @@ void GPUProfiler::Tick()
 		for (uint32 i = 0; i < (uint32)m_Queues.size(); ++i)
 			eventFrame.EventsPerQueue[i] = {};
 	}
+#endif
 }
 
 void GPUProfiler::ExecuteCommandLists(Span<nvrhi::CommandListHandle> commandLists)
 {
+#if USE_DX12
+	if (m_GraphicsAPI != nvrhi::GraphicsAPI::D3D12)
+		return;
 	if (m_IsPaused)
 		return;
 
@@ -240,11 +269,13 @@ void GPUProfiler::ExecuteCommandLists(Span<nvrhi::CommandListHandle> commandList
 		}
 	}
 	check(queryRangeStack.empty(), "Forgot to End %d Events", queryRangeStack.size());
+#endif
 }
 
 
 void GPUProfiler::QueryHeap::Initialize(ID3D12Device* pDevice, ID3D12CommandQueue* pResolveQueue, uint32 maxNumQueries, uint32 frameLatency)
 {
+#if USE_DX12
 	m_pResolveQueue = pResolveQueue;
 	m_FrameLatency = frameLatency;
 	m_MaxNumQueries = maxNumQueries;
@@ -280,10 +311,12 @@ void GPUProfiler::QueryHeap::Initialize(ID3D12Device* pDevice, ID3D12CommandQueu
 
 	pDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_pResolveFence));
 	m_ResolveWaitHandle = CreateEventExA(nullptr, "Fence Event", 0, EVENT_ALL_ACCESS);
+#endif
 }
 
 void GPUProfiler::QueryHeap::Shutdown()
 {
+#if USE_DX12
 	if (!IsInitialized())
 		return;
 
@@ -294,17 +327,23 @@ void GPUProfiler::QueryHeap::Shutdown()
 	m_pReadbackResource->Release();
 	m_pResolveFence->Release();
 	CloseHandle(m_ResolveWaitHandle);
+#endif
 }
 
 uint32 GPUProfiler::QueryHeap::RecordQuery(ID3D12GraphicsCommandList* pCmd)
 {
+#if USE_DX12
 	uint32 index = m_QueryIndex.fetch_add(1);
 	pCmd->EndQuery(m_pQueryHeap, D3D12_QUERY_TYPE_TIMESTAMP, index);
 	return index;
+#else
+	return 0
+#endif
 }
 
 uint32 GPUProfiler::QueryHeap::Resolve(uint32 frameIndex)
 {
+#if USE_DX12
 	if (!IsInitialized())
 		return 0;
 
@@ -317,10 +356,14 @@ uint32 GPUProfiler::QueryHeap::Resolve(uint32 frameIndex)
 	m_pResolveQueue->ExecuteCommandLists(1, pCmdLists);
 	m_pResolveQueue->Signal(m_pResolveFence, frameIndex + 1);
 	return numQueries;
+#else
+	return 0;
+#endif
 }
 
 void GPUProfiler::QueryHeap::Reset(uint32 frameIndex)
 {
+#if USE_DX12
 	if (!IsInitialized())
 		return;
 
@@ -328,6 +371,7 @@ void GPUProfiler::QueryHeap::Reset(uint32 frameIndex)
 	ID3D12CommandAllocator* pAllocator = m_CommandAllocators[frameIndex % m_FrameLatency];
 	pAllocator->Reset();
 	m_pCommandList->Reset(pAllocator, nullptr);
+#endif
 }
 
 
@@ -467,5 +511,3 @@ void CPUProfiler::RegisterThread(const char* pName)
 	for (uint32 i = 0; i < m_HistorySize; ++i)
 		m_pEventData[i].EventsPerThread.resize(m_ThreadData.size());
 }
-
-#endif

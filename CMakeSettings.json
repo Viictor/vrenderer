@@ -17,8 +17,23 @@
           "type": "BOOL"
         },
         {
+          "name": "NVRHI_WITH_DX11",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
           "name": "SHADERMAKE_FIND_FXC",
-          "value": "False",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "NVRHI_WITH_VULKAN",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "SHADERMAKE_FIND_DXC_SPIRV",
+          "value": "True",
           "type": "BOOL"
         }
       ],
@@ -35,13 +50,28 @@
       "inheritEnvironments": [ "msvc_x64_x64" ],
       "variables": [
         {
-          "name": "SHADERMAKE_FIND_FXC",
-          "value": "False",
+          "name": "DONUT_WITH_DX12",
+          "value": "True",
           "type": "BOOL"
         },
         {
           "name": "NVRHI_WITH_DX11",
-          "value": "False",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "SHADERMAKE_FIND_FXC",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "NVRHI_WITH_VULKAN",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "SHADERMAKE_FIND_DXC_SPIRV",
+          "value": "True",
           "type": "BOOL"
         }
       ]
