@@ -1,6 +1,7 @@
 
 #include "Profiler.h"
 #include <donut/app/imgui_nvrhi.h>
+#include <imgui_internal.h>
 #include "IconsFontAwesome4.h"
 
 struct StyleOptions

@@ -59,3 +59,7 @@ bin/
 .vs
 nvapi/
 /donut-*
+
+# generated folders
+_bin/
+_build/

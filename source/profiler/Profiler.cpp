@@ -273,7 +273,7 @@ void GPUProfiler::QueryHeap::Initialize(ID3D12Device* pDevice, ID3D12CommandQueu
 	D3D12_HEAP_PROPERTIES heapProps{};
 	heapProps.Type = D3D12_HEAP_TYPE_READBACK;
 
-	pDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &readbackDesc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_pReadbackResource));
+	pDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &readbackDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_pReadbackResource));
 	void* pReadbackData = nullptr;
 	m_pReadbackResource->Map(0, nullptr, &pReadbackData);
 	m_pReadbackData = (uint64*)pReadbackData;

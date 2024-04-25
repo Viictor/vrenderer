@@ -140,8 +140,8 @@ public:
         , m_Executor(executor)
 	{
         std::filesystem::path mediaPath = app::GetDirectoryWithExecutable().parent_path() / "media";
-        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
-        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/vRenderer" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
+        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "_shaders/donut" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
+        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "_shaders/vRenderer" / app::GetShaderTypeName(deviceManager->GetDevice()->getGraphicsAPI());
 
         std::shared_ptr<donut::vfs::NativeFileSystem> nativeFS = std::make_shared<donut::vfs::NativeFileSystem>();
         m_RootFs = std::make_shared<donut::vfs::RootFileSystem>();
@@ -165,13 +165,19 @@ public:
 
 
         m_UIData.m_MaxHeight = 120.0f;
-        std::filesystem::path textureFileName ="/media/Heightmap_01_Mountains4k.png";
+        std::filesystem::path textureFileName ="/media/Ridge Through Terrain Height Map.png";
         std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
+
+        engine::TextureData* textureData = static_cast<engine::TextureData*>(heightmapTexture.get());
+        if (!textureData->data)
+        {
+            log::fatal("Couldn't load %s", textureFileName.generic_string().c_str());
+        }
 
         m_TerrainPass = std::make_unique<vRenderer::TerrainPass>(GetDevice(), m_CommonPasses, m_UIData);
         m_TerrainPass->Init(*m_ShaderFactory, vRenderer::TerrainPass::CreateParameters(), m_CommandList, heightmapTexture, m_Executor);
 
-        std::filesystem::path scenePath = "/media/glTF-Sample-Models/2.0";
+        std::filesystem::path scenePath = "/media/gltfScenes";
         m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
 
         if (sceneName.empty() && m_SceneFilesAvailable.empty())
@@ -182,7 +188,7 @@ public:
 
 
         if (sceneName.empty())
-            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "emptyScene.gltf"));
+            SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, "Cube.gltf"));
         else
             SetCurrentSceneName(app::FindPreferredScene(m_SceneFilesAvailable, sceneName));
 
