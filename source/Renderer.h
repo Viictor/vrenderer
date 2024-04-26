@@ -164,6 +164,6 @@ namespace vRenderer
 		void RecordCommand(nvrhi::IFramebuffer* framebuffer) const;
 		void Submit();
 
-		static void RenderUI(Editor& editor);
+		void RenderUI(Editor& editor);
 	};
 }

@@ -48,8 +48,6 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 	m_DeferredLightingPass = std::make_unique<render::DeferredLightingPass>(GetDevice(), m_CommonPasses);
 	m_DeferredLightingPass->Init(m_ShaderFactory);
 
-	m_DirectionalLight = std::make_shared<engine::DirectionalLight>();
-
 	m_CommandList = GetDevice()->createCommandList();
 
 	// To remove
@@ -71,16 +69,21 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 
 	
 
-	m_Editor->AddEditorWindow(new EditorWindowCallback(Renderer::RenderUI));
+	m_Editor->AddEditorWindow(new EditorWindowCallback([this](Editor& editor)
+	{
+		RenderUI(editor);
+	}));
 	deviceManager->AddRenderPassToBack(m_Editor.get());
 
 
-	std::filesystem::path scenePath = "/media/gltfScenes";
+	/*std::filesystem::path scenePath = "/media/gltfScenes";
 	m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
 	std::string sceneName = app::FindPreferredScene(m_SceneFilesAvailable, "Cube.gltf");
 
 	m_CurrentSceneName = sceneName;
-	ApplicationBase::BeginLoadingScene(m_RootFs, sceneName);
+	ApplicationBase::BeginLoadingScene(m_RootFs, sceneName);*/
+
+	ApplicationBase::SceneLoaded();
 }
 
 bool Renderer::LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& fileName)
@@ -119,9 +122,11 @@ void Renderer::SceneLoaded()
 	{
 		std::shared_ptr<engine::SceneGraphNode> node = std::make_shared<engine::SceneGraphNode>();
 		m_Scene->GetSceneGraph()->Attach(m_Scene->GetSceneGraph()->GetRootNode(), node);
+
+		m_DirectionalLight = std::make_shared<engine::DirectionalLight>();
 		node->SetLeaf(m_DirectionalLight);
 		m_DirectionalLight->SetName("Sun");
-		m_DirectionalLight->SetDirection(dm::normalize(dm::double3(m_Editor->GetUIData().m_SunDir[0], m_Editor->GetUIData().m_SunDir[1], m_Editor->GetUIData().m_SunDir[2])));
+		m_DirectionalLight->SetDirection({ 0.1f ,-0.4f , 0.1f });
 		m_DirectionalLight->angularSize = .53f;
 		m_DirectionalLight->irradiance = 1.0f;
 	}
@@ -264,17 +269,15 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 		PROFILE_GPU_SCOPE(m_CommandList, "GPU Frame");
 
 		PROFILE_GPU_BEGIN(m_CommandList, "Scene Refresh");
-		if (m_Scene->GetSceneGraph())
+		if (m_Scene && m_Scene->GetSceneGraph())
 			m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
 		PROFILE_GPU_END(m_CommandList);
 
 		m_RenderTargets->Clear(m_CommandList);
 
-		m_DirectionalLight->SetDirection(dm::normalize(dm::double3(m_Editor->GetUIData().m_SunDir[0], m_Editor->GetUIData().m_SunDir[1], m_Editor->GetUIData().m_SunDir[2])));
-
 		render::GBufferFillPass::Context context;
 
-		if (m_Scene->GetSceneGraph())
+		if (m_Scene && m_Scene->GetSceneGraph())
 		{
 			PROFILE_GPU_SCOPE(m_CommandList, "GBuffer fill");
 			render::RenderCompositeView(
@@ -306,7 +309,7 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 
 
 
-		if (m_Scene->GetSceneGraph())
+		if (m_Scene && m_Scene->GetSceneGraph())
 		{
 			PROFILE_GPU_SCOPE(m_CommandList, "Deferred Lighting");
 			render::DeferredLightingPass::Inputs deferredInputs;
@@ -325,10 +328,12 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 		m_ToneMappingPass->SimpleRender(m_CommandList, ToneMappingParameters(), m_View, m_RenderTargets->HdrColor);
 		PROFILE_GPU_END(m_CommandList);
 
-		PROFILE_GPU_BEGIN(m_CommandList, "Sky");
-		m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
-		PROFILE_GPU_END(m_CommandList);
-
+		if (m_DirectionalLight)
+		{
+			PROFILE_GPU_BEGIN(m_CommandList, "Sky");
+			m_SkyPass->Render(m_CommandList, m_View, *m_DirectionalLight, SkyParameters());
+			PROFILE_GPU_END(m_CommandList);
+		}
 		m_CommonPasses->BlitTexture(m_CommandList, framebuffer, m_RenderTargets->LdrColor, m_BindingCache.get());
 
 		//m_CommonPasses->BlitTexture(m_CommandList, framebuffer, 
@@ -370,9 +375,10 @@ void Renderer::RenderUI(Editor& editor)
 
 	ImGui::InputFloat("Max Height", &editor.GetUIData().m_MaxHeight, 1.0);
 
-	ImGui::DragFloat3("Sun Dir", editor.GetUIData().m_SunDir, 0.01f, -1.0f, 1.0f);
-
 	ImGui::Text("Num instances : %i", editor.GetUIData().m_NumChunks);
+
+	if (m_DirectionalLight)
+		app::LightEditor(*m_DirectionalLight);
 
 	ImGui::End();
 
@@ -386,11 +392,26 @@ void Renderer::RenderUI(Editor& editor)
 		DrawProfilerHUD(editor.GetUIData().m_ProfilerWindowHeight);
 		ImGui::End();
 	}
-
+	
 	if (editor.GetUIData().m_FileOpen)
 	{
 		std::string filename;
-		app::FileDialog(true, ".gltf", filename);
+		bool result = app::FileDialog(true, ".gltf", filename);
 		editor.GetUIData().m_FileOpen = false;
+
+		if (result)
+		{
+			std::string token = filename.substr(filename.find_last_of("\\") + 1, filename.length());
+
+			std::filesystem::path scenePath = "/media/gltfScenes";
+			m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
+			std::string sceneName = app::FindPreferredScene(m_SceneFilesAvailable, token);
+
+			if (!sceneName.empty())
+			{
+				m_CurrentSceneName = sceneName;
+				ApplicationBase::BeginLoadingScene(m_RootFs, sceneName);
+			}
+		}
 	}
 }

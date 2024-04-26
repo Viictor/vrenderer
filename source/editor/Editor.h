@@ -9,7 +9,6 @@ namespace vRenderer
 		bool m_Wireframe = false;
 		bool m_LockView = false;
 		float m_MaxHeight = 10.0f;
-		float m_SunDir[3] = { 0.1f ,-0.4f , 0.1f };
 		uint32_t m_NumChunks = 0;
 		bool m_ProfilerOpen = true;
 		bool m_FileOpen = false;
