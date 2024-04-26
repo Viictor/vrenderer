@@ -52,18 +52,22 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 
 	// To remove
 	m_Editor->GetUIData().m_MaxHeight = 120.0f;
-	const std::filesystem::path textureFileName = "/media/Heightmap_01_Mountains4k.png";
+	const std::filesystem::path textureFileName = "/media/Rugged Terrain Height Map PNG2k.png";
 	std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
+
+	const std::filesystem::path colorTextureFileName = "/media/Rugged Terrain Diffuse PNG2k.png";
+	std::shared_ptr<engine::LoadedTexture> colorTexture = m_TextureCache->LoadTextureFromFileDeferred(colorTextureFileName, true);
 
 	engine::TextureData* textureData = (engine::TextureData*)heightmapTexture.get();
 	if (!textureData->data)
 	{
 		log::warning("Couldn't load %s", textureFileName.generic_string().c_str());
         heightmapTexture.reset();
+		colorTexture.reset();
 	}
 
 	m_TerrainPass = std::make_unique<TerrainPass>(GetDevice(), m_CommonPasses, m_Editor->GetUIData());
-	m_TerrainPass->Init(*m_ShaderFactory, TerrainPass::CreateParameters(), m_CommandList, heightmapTexture, m_Executor);
+	m_TerrainPass->Init(*m_ShaderFactory, TerrainPass::CreateParameters(), m_CommandList, heightmapTexture, colorTexture, m_Executor);
 
 	m_FirstPersonCamera.LookAt(float3(.0f, 120.8f, .0f), float3(1.0f, 1.8f, .0f));
 	m_FirstPersonCamera.SetMoveSpeed(20.0f);
@@ -121,15 +125,17 @@ void Renderer::SceneLoaded()
 
 	if (m_Scene->GetSceneGraph()->GetLights().empty())
 	{
-		std::shared_ptr<engine::SceneGraphNode> node = std::make_shared<engine::SceneGraphNode>();
-		m_Scene->GetSceneGraph()->Attach(m_Scene->GetSceneGraph()->GetRootNode(), node);
-
 		m_DirectionalLight = std::make_shared<engine::DirectionalLight>();
-		node->SetLeaf(m_DirectionalLight);
-		m_DirectionalLight->SetName("Sun");
-		m_DirectionalLight->SetDirection({ 0.1f ,-0.4f , 0.1f });
 		m_DirectionalLight->angularSize = .53f;
 		m_DirectionalLight->irradiance = 1.0f;
+
+		auto node = std::make_shared<engine::SceneGraphNode>();
+		node->SetLeaf(m_DirectionalLight);
+
+		m_DirectionalLight->SetDirection({ -0.9f ,-0.25f , 0.35f });
+		m_DirectionalLight->SetName("Sun");
+
+		m_Scene->GetSceneGraph()->Attach(m_Scene->GetSceneGraph()->GetRootNode(), node);
 	}
 }
 
@@ -326,7 +332,7 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 			PROFILE_GPU_SCOPE(m_CommandList, "Deferred Lighting");
 			render::DeferredLightingPass::Inputs deferredInputs;
 			deferredInputs.SetGBuffer(*m_RenderTargets);
-			deferredInputs.ambientColorTop = 0.2f;
+			deferredInputs.ambientColorTop = 0.1f;
 			deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
 			deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
 			deferredInputs.output = m_RenderTargets->HdrColor;

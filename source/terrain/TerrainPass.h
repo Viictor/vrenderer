@@ -120,7 +120,12 @@ namespace vRenderer
 
 	public:
 		TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData);
-		void Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, const std::shared_ptr<engine::LoadedTexture>& heightmapTexture, tf::Executor& executor);
+		void Init(engine::ShaderFactory& shaderFactory, 
+			const CreateParameters& params, 
+			nvrhi::ICommandList* commandList, 
+			const std::shared_ptr<engine::LoadedTexture>& heightmapTexture,
+			const std::shared_ptr<engine::LoadedTexture>& colorTexture,
+			tf::Executor& executor);
 		void Render(
 			nvrhi::ICommandList* commandList, 
 			const engine::ICompositeView* compositeView,

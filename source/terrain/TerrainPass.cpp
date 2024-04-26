@@ -16,15 +16,18 @@ using namespace donut::math;
 using namespace vRenderer;
 using namespace donut;
 
-#define MAX_INSTANCES 4096
-#define SURFACE_SIZE 128.0f
-#define WORLD_SIZE 1024.0f
-#define GRID_SIZE 16 
+constexpr int MAX_INSTANCES = 4096;
+constexpr int SURFACE_SIZE = 1024;
+constexpr int WORLD_SIZE = 1024;
+constexpr int GRID_SIZE = 16;
+
+static_assert(WORLD_SIZE >= SURFACE_SIZE && (WORLD_SIZE % SURFACE_SIZE == 0));
 
 struct TerrainPass::Resources
 {
 	std::vector<InstanceData> instanceData;
 	std::shared_ptr<engine::LoadedTexture> heightmapTexture;
+	std::shared_ptr<engine::LoadedTexture> colorTexture;
 };
 
 TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData)
@@ -36,7 +39,7 @@ TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonR
 	m_Resources->instanceData.resize((MAX_INSTANCES));
 }
 
-void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, const std::shared_ptr<engine::LoadedTexture>& heightmapTexture, tf::Executor& executor)
+void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, const std::shared_ptr<engine::LoadedTexture>& heightmapTexture, const std::shared_ptr<engine::LoadedTexture>& colorTexture, tf::Executor& executor)
 {
 	m_SupportedViewTypes = engine::ViewType::PLANAR;
 
@@ -99,8 +102,9 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	{
 		
 		m_Resources->heightmapTexture = heightmapTexture;
+		m_Resources->colorTexture = colorTexture;
 
-		constexpr int numSurfacesPerSide = static_cast<int>(WORLD_SIZE / SURFACE_SIZE);
+		constexpr int numSurfacesPerSide = WORLD_SIZE / SURFACE_SIZE;
 		constexpr int numSurfaces = numSurfacesPerSide * numSurfacesPerSide;
 		m_QuadTrees.resize(numSurfaces);
 		for (int i = 0; i < numSurfaces; i++)
@@ -111,7 +115,7 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 			float x = -0.5f * (numSurfacesPerSide - 1) + column;
 			float y = -0.5f * (numSurfacesPerSide - 1) + row;
 
-			m_QuadTrees[i] = std::make_shared<QuadTree>(SURFACE_SIZE, SURFACE_SIZE, WORLD_SIZE, float3(x * SURFACE_SIZE, 0.0f, y * SURFACE_SIZE));
+			m_QuadTrees[i] = std::make_shared<QuadTree>((float)SURFACE_SIZE, (float)SURFACE_SIZE, (float)WORLD_SIZE, float3(x * (float)SURFACE_SIZE, 0.0f, y * (float)SURFACE_SIZE));
 			m_QuadTrees[i]->Init(m_Resources->heightmapTexture, executor);
 		}
 	}
@@ -259,7 +263,7 @@ void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* c
 
 	TerrainParamsConstants paramsConstants = {};
 	paramsConstants.worldSize = WORLD_SIZE;
-	paramsConstants.surfaceSize = SURFACE_SIZE;
+	paramsConstants.surfaceSize = (float)SURFACE_SIZE;
 	paramsConstants.maxHeight = m_UIData.m_MaxHeight;
 	paramsConstants.gridSize = GRID_SIZE;
 
@@ -374,6 +378,7 @@ nvrhi::BindingLayoutHandle vRenderer::TerrainPass::CreateHeightmapBindingLayout(
 	heightmapLayoutDescs.visibility = nvrhi::ShaderType::All;
 	heightmapLayoutDescs.bindings = {
 		nvrhi::BindingLayoutItem::Texture_SRV(0),
+		nvrhi::BindingLayoutItem::Texture_SRV(1),
 		nvrhi::BindingLayoutItem::Sampler(0)
 	};
 
@@ -387,6 +392,7 @@ nvrhi::BindingSetHandle vRenderer::TerrainPass::GetOrCreateHeightmapBindingSet()
 	nvrhi::BindingSetDesc bindingSetDescs;
 	bindingSetDescs.bindings = {
 		nvrhi::BindingSetItem::Texture_SRV(0, textureLoaded ? m_Resources->heightmapTexture->texture : m_CommonPasses->m_BlackTexture, nvrhi::Format::UNKNOWN),
+		nvrhi::BindingSetItem::Texture_SRV(1, textureLoaded ? m_Resources->colorTexture->texture : m_CommonPasses->m_BlackTexture, nvrhi::Format::UNKNOWN),
 		nvrhi::BindingSetItem::Sampler(0, m_CommonPasses->m_LinearWrapSampler)
 	};
 
