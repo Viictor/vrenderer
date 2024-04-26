@@ -13,13 +13,13 @@ namespace donut::engine
 	class CommonRenderPasses;
 }
 
-struct UIData;
-
 using namespace donut;
 using namespace donut::render;
 
 namespace vRenderer
 {
+	struct UIData;
+
 	class TerrainPass : public IGeometryPass
 	{
 	public:
@@ -99,28 +99,28 @@ namespace vRenderer
 		std::shared_ptr<Resources> m_Resources;
 		std::shared_ptr<engine::CommonRenderPasses> m_CommonPasses;
 
-		nvrhi::InputLayoutHandle CreateInputLayout(nvrhi::IShader* vertexShader, const CreateParameters& params);
-		nvrhi::ShaderHandle CreateVertexShader(engine::ShaderFactory& shaderFactory, const CreateParameters& params);
-		nvrhi::ShaderHandle CreatePixelShader(engine::ShaderFactory& shaderFactory, const CreateParameters& params);
+		nvrhi::InputLayoutHandle CreateInputLayout(nvrhi::IShader* vertexShader, const CreateParameters& params) const;
+		static nvrhi::ShaderHandle CreateVertexShader(engine::ShaderFactory& shaderFactory, const CreateParameters& params);
+		static nvrhi::ShaderHandle CreatePixelShader(engine::ShaderFactory& shaderFactory, const CreateParameters& params);
 
-		nvrhi::BindingLayoutHandle CreateViewBindingLayout();
-		nvrhi::BindingSetHandle CreateViewBindingSet();
+		nvrhi::BindingLayoutHandle CreateViewBindingLayout() const;
+		nvrhi::BindingSetHandle CreateViewBindingSet() const;
 
-		nvrhi::BindingLayoutHandle CreateHeightmapBindingLayout();
+		nvrhi::BindingLayoutHandle CreateHeightmapBindingLayout() const;
 		nvrhi::BindingSetHandle GetOrCreateHeightmapBindingSet();
 
-		nvrhi::BindingLayoutHandle CreateLightBindingLayout();
-		nvrhi::BindingSetHandle CreateLightBindingSet(nvrhi::ITexture* shadowMapTexture, nvrhi::ITexture* diffuse, nvrhi::ITexture* specular, nvrhi::ITexture* environmentBrdf);
+		nvrhi::BindingLayoutHandle CreateLightBindingLayout() const;
+		nvrhi::BindingSetHandle CreateLightBindingSet(nvrhi::ITexture* shadowMapTexture, nvrhi::ITexture* diffuse, nvrhi::ITexture* specular, nvrhi::ITexture* environmentBrdf) const;
 		
 		nvrhi::GraphicsPipelineHandle CreateGraphicsPipeline(PipelineKey key, nvrhi::IFramebuffer* framebuffer);
 
-		nvrhi::BufferHandle CreateGeometryBuffer(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, const char* debugName, const void* data, uint64_t dataSize, bool isVertexBuffer);
+		static nvrhi::BufferHandle CreateGeometryBuffer(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, const char* debugName, const void* data, uint64_t dataSize, bool isVertexBuffer);
 
-		nvrhi::BufferHandle CreateInstanceBuffer(nvrhi::IDevice* device);
+		nvrhi::BufferHandle CreateInstanceBuffer(nvrhi::IDevice* device) const;
 
 	public:
 		TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData);
-		void Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture, tf::Executor& executor);
+		void Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, const std::shared_ptr<engine::LoadedTexture>& heightmapTexture, tf::Executor& executor);
 		void Render(
 			nvrhi::ICommandList* commandList, 
 			const engine::ICompositeView* compositeView,
@@ -129,7 +129,7 @@ namespace vRenderer
 			const RenderParams& renderParams
 		);
 
-		void UpdateTransforms(const std::shared_ptr<QuadTree> quadTree, const int instanceDataOffset);
+		void UpdateTransforms(const std::shared_ptr<QuadTree>& quadTree, const int instanceDataOffset) const;
 
 		// IGeometryPass implementation
 		[[nodiscard]] engine::ViewType::Enum GetSupportedViewTypes() const override;

@@ -5,13 +5,10 @@
 #include <donut/engine/TextureCache.h>
 #include <donut/engine/FramebufferFactory.h>
 #include <donut/engine/CommonRenderPasses.h>
-#include <donut/core/vfs/VFS.h>
 #include <nvrhi/utils.h>
 #include <donut/shaders/bindless.h>
 
-#include <taskflow/taskflow.hpp>
-
-#include "../UIRenderer.h"
+#include "../editor/Editor.h"
 
 using namespace donut::math;
 #include "../../shaders/terrain/terrain_cb.h"
@@ -32,28 +29,14 @@ struct TerrainPass::Resources
 
 TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData)
 	: m_Device(device)
-	, m_CommonPasses(std::move(commonPasses))
 	, m_UIData(uiData)
+	, m_CommonPasses(std::move(commonPasses))
 {
 	m_Resources = std::make_shared<Resources>();
 	m_Resources->instanceData.resize((MAX_INSTANCES));
-
-	const int numSurfacesPerSide = int(WORLD_SIZE / SURFACE_SIZE);
-	const int numSurfaces = numSurfacesPerSide * numSurfacesPerSide;
-	m_QuadTrees.resize(numSurfaces);
-	for (int i = 0; i < numSurfaces; i++)
-	{
-		int column = i % numSurfacesPerSide;
-		int row = i / numSurfacesPerSide;
-
-		float x = -0.5f * (numSurfacesPerSide - 1) + column;
-		float y = -0.5f * (numSurfacesPerSide - 1) + row;
-
-		m_QuadTrees[i] = std::make_shared<QuadTree>(SURFACE_SIZE, SURFACE_SIZE, WORLD_SIZE, float3(x * SURFACE_SIZE, 0.0f, y * SURFACE_SIZE));
-	}
 }
 
-void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, std::shared_ptr<engine::LoadedTexture> heightmapTexture, tf::Executor& executor)
+void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, const std::shared_ptr<engine::LoadedTexture>& heightmapTexture, tf::Executor& executor)
 {
 	m_SupportedViewTypes = engine::ViewType::PLANAR;
 
@@ -73,8 +56,8 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	std::vector<uint32_t> vIndices;
 	uint32_t vPositionsByteSize = 0;
 
-	const int sideSize = GRID_SIZE + 1;
-	const int halfSize = GRID_SIZE / 2;
+	constexpr int sideSize = GRID_SIZE + 1;
+	constexpr int halfSize = GRID_SIZE / 2;
 	vPositions.resize(sideSize * sideSize);
 	vPositionsByteSize = sideSize * sideSize * sizeof(float3);
 
@@ -84,7 +67,7 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 		for (int w = -halfSize; w <= halfSize; w++)
 		{
 			assert(index < vPositions.size());
-			vPositions[index] = float3((float)w / halfSize, 0.0f, (float)h / halfSize);
+			vPositions[index] = float3(static_cast<float>(w) / halfSize, 0.0f, static_cast<float>(h) / halfSize);
 			index++;
 		}
 	}
@@ -110,14 +93,28 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 		}
 	}
 
-	m_Resources->heightmapTexture = heightmapTexture;
 	m_HeightmapBindingLayout = CreateHeightmapBindingLayout();
-	
-	for (int i = 0; i < m_QuadTrees.size(); i++)
-	{
-		m_QuadTrees[i]->Init(m_Resources->heightmapTexture, executor);
-	}
 
+	if (heightmapTexture)
+	{
+		
+		m_Resources->heightmapTexture = heightmapTexture;
+
+		constexpr int numSurfacesPerSide = static_cast<int>(WORLD_SIZE / SURFACE_SIZE);
+		constexpr int numSurfaces = numSurfacesPerSide * numSurfacesPerSide;
+		m_QuadTrees.resize(numSurfaces);
+		for (int i = 0; i < numSurfaces; i++)
+		{
+			int column = i % numSurfacesPerSide;
+			int row = i / numSurfacesPerSide;
+
+			float x = -0.5f * (numSurfacesPerSide - 1) + column;
+			float y = -0.5f * (numSurfacesPerSide - 1) + row;
+
+			m_QuadTrees[i] = std::make_shared<QuadTree>(SURFACE_SIZE, SURFACE_SIZE, WORLD_SIZE, float3(x * SURFACE_SIZE, 0.0f, y * SURFACE_SIZE));
+			m_QuadTrees[i]->Init(m_Resources->heightmapTexture, executor);
+		}
+	}
 	commandList->open();
 
 	m_Buffers = std::make_shared<engine::BufferGroup>();
@@ -135,7 +132,7 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	commandList->close();
 	m_Device->executeCommandList(commandList);
 
-	std::shared_ptr<engine::MeshGeometry> geometry = std::make_shared<engine::MeshGeometry>();
+	const std::shared_ptr<engine::MeshGeometry> geometry = std::make_shared<engine::MeshGeometry>();
 	geometry->material = nullptr;
 	geometry->numIndices = static_cast<uint32_t>(vIndices.size());
 	geometry->numVertices = static_cast<uint32_t>(vPositions.size());
@@ -155,7 +152,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 	m_RenderParams = renderParams;
 
-	engine::ViewType::Enum supportedViewTypes = GetSupportedViewTypes();
+	const engine::ViewType::Enum supportedViewTypes = GetSupportedViewTypes();
 
 	if (compositeViewPrev)
 	{
@@ -174,16 +171,14 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 		{
 			int instanceDataOffset = 0;
 			m_UIData.m_NumChunks = 0;
-			for (int i = 0; i < m_QuadTrees.size(); i++)
+			for (const auto& quadTree : m_QuadTrees)
 			{
-				const std::shared_ptr<QuadTree>& quadTree = m_QuadTrees[i];
-
 				quadTree->ClearSelectedNodes();
 				quadTree->NodeSelect(float3(view->GetViewOrigin()), quadTree->GetRootNode().get(), quadTree->GetNumLods() - 1, view->GetViewFrustum(), m_UIData.m_MaxHeight);
 
 				UpdateTransforms(quadTree, instanceDataOffset);
 
-				instanceDataOffset += int(quadTree->GetSelectedNodes().size());
+				instanceDataOffset += static_cast<int>(quadTree->GetSelectedNodes().size());
 			}
 			commandList->writeBuffer(m_Buffers->instanceBuffer, m_Resources->instanceData.data(), m_Resources->instanceData.size() * sizeof(InstanceData));
 		}
@@ -226,10 +221,10 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 	commandList->endMarker();
 }
 
-void vRenderer::TerrainPass::UpdateTransforms(const std::shared_ptr<QuadTree> quadTree, const int instanceDataOffset)
+void vRenderer::TerrainPass::UpdateTransforms(const std::shared_ptr<QuadTree>& quadTree, const int instanceDataOffset) const
 {
 	auto& nodes = quadTree->GetSelectedNodes();
-	assert(int(nodes.size()) < MAX_INSTANCES);
+	assert(static_cast<int>(nodes.size()) < MAX_INSTANCES);
 
 	for (int i = 0; i < nodes.size(); i++)
 	{
@@ -256,7 +251,7 @@ engine::ViewType::Enum TerrainPass::GetSupportedViewTypes() const
 
 void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* commandList, const engine::IView* view, const engine::IView* viewPrev)
 {
-	Context& terrainContext = static_cast<Context&>(context);
+	Context& terrainContext = (Context&)context;
 
 	TerrainViewConstants viewConstants = {};
 	view->FillPlanarViewConstants(viewConstants.view);
@@ -268,10 +263,13 @@ void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* c
 	paramsConstants.maxHeight = m_UIData.m_MaxHeight;
 	paramsConstants.gridSize = GRID_SIZE;
 
-	auto lodRanges = m_QuadTrees[0]->GetLodRanges();
-	for (int i = 0; i < lodRanges.size(); i++)
+	if (!m_QuadTrees.empty())
 	{
-		paramsConstants.lodRanges[i].x = lodRanges[i];
+		const auto& lodRanges = m_QuadTrees[0]->GetLodRanges();
+		for (int i = 0; i < lodRanges.size(); i++)
+		{
+			paramsConstants.lodRanges[i].x = lodRanges[i];
+		}
 	}
 	commandList->writeBuffer(m_TerrainViewPassCB, &viewConstants, sizeof(viewConstants));
 	commandList->writeBuffer(m_TerrainParamsPassCB, &paramsConstants, sizeof(paramsConstants));
@@ -282,7 +280,7 @@ void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* c
 
 bool TerrainPass::SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state)
 {
-	Context& terrainContext = static_cast<Context&>(context);
+	const Context& terrainContext = (Context&)context;
 
 	PipelineKey key = terrainContext.keyTemplate;
 	key.bits.cullMode = cullMode;
@@ -321,7 +319,7 @@ void TerrainPass::SetupInputBuffers(GeometryPassContext& context, const engine::
 	state.indexBuffer = { buffers->indexBuffer, nvrhi::Format::R32_UINT, 0 };
 }
 
-nvrhi::InputLayoutHandle TerrainPass::CreateInputLayout(nvrhi::IShader* vertexShader, const CreateParameters& params)
+nvrhi::InputLayoutHandle TerrainPass::CreateInputLayout(nvrhi::IShader* vertexShader, const CreateParameters& params) const
 {
 	const nvrhi::VertexAttributeDesc inputDescs[] =
 	{
@@ -346,7 +344,7 @@ nvrhi::ShaderHandle TerrainPass::CreatePixelShader(engine::ShaderFactory& shader
 	return shaderFactory.CreateShader("/shaders/vrenderer/terrain/terrainPass.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
 }
 
-nvrhi::BindingLayoutHandle TerrainPass::CreateViewBindingLayout()
+nvrhi::BindingLayoutHandle TerrainPass::CreateViewBindingLayout() const
 {
 	nvrhi::BindingLayoutDesc viewLayoutDescs;
 	viewLayoutDescs.visibility = nvrhi::ShaderType::All;
@@ -358,7 +356,7 @@ nvrhi::BindingLayoutHandle TerrainPass::CreateViewBindingLayout()
 	return m_Device->createBindingLayout(viewLayoutDescs);
 }
 
-nvrhi::BindingSetHandle TerrainPass::CreateViewBindingSet()
+nvrhi::BindingSetHandle TerrainPass::CreateViewBindingSet() const
 {
 	nvrhi::BindingSetDesc bindingSetDescs;
 	bindingSetDescs.bindings = {
@@ -370,7 +368,7 @@ nvrhi::BindingSetHandle TerrainPass::CreateViewBindingSet()
 	return m_Device->createBindingSet(bindingSetDescs, m_ViewBindingLayout);
 }
 
-nvrhi::BindingLayoutHandle vRenderer::TerrainPass::CreateHeightmapBindingLayout()
+nvrhi::BindingLayoutHandle vRenderer::TerrainPass::CreateHeightmapBindingLayout() const
 {
 	nvrhi::BindingLayoutDesc heightmapLayoutDescs;
 	heightmapLayoutDescs.visibility = nvrhi::ShaderType::All;
@@ -384,9 +382,11 @@ nvrhi::BindingLayoutHandle vRenderer::TerrainPass::CreateHeightmapBindingLayout(
 
 nvrhi::BindingSetHandle vRenderer::TerrainPass::GetOrCreateHeightmapBindingSet()
 {
+	const bool textureLoaded = m_Resources->heightmapTexture && m_Resources->heightmapTexture->texture;
+
 	nvrhi::BindingSetDesc bindingSetDescs;
 	bindingSetDescs.bindings = {
-		nvrhi::BindingSetItem::Texture_SRV(0, m_Resources->heightmapTexture->texture ? m_Resources->heightmapTexture->texture : m_CommonPasses->m_BlackTexture, nvrhi::Format::UNKNOWN),
+		nvrhi::BindingSetItem::Texture_SRV(0, textureLoaded ? m_Resources->heightmapTexture->texture : m_CommonPasses->m_BlackTexture, nvrhi::Format::UNKNOWN),
 		nvrhi::BindingSetItem::Sampler(0, m_CommonPasses->m_LinearWrapSampler)
 	};
 
@@ -402,7 +402,7 @@ nvrhi::BindingSetHandle vRenderer::TerrainPass::GetOrCreateHeightmapBindingSet()
 		return m_HeightmapBindingSet;
 }
 
-nvrhi::BindingLayoutHandle TerrainPass::CreateLightBindingLayout()
+nvrhi::BindingLayoutHandle TerrainPass::CreateLightBindingLayout() const
 {
 	// to do when shadowmaps
 
@@ -416,7 +416,7 @@ nvrhi::BindingLayoutHandle TerrainPass::CreateLightBindingLayout()
 	return m_Device->createBindingLayout(viewLayoutDescs);
 }
 
-nvrhi::BindingSetHandle TerrainPass::CreateLightBindingSet(nvrhi::ITexture* shadowMapTexture, nvrhi::ITexture* diffuse, nvrhi::ITexture* specular, nvrhi::ITexture* environmentBrdf)
+nvrhi::BindingSetHandle TerrainPass::CreateLightBindingSet(nvrhi::ITexture* shadowMapTexture, nvrhi::ITexture* diffuse, nvrhi::ITexture* specular, nvrhi::ITexture* environmentBrdf) const
 {
 	// to do when shadomaps
 
@@ -430,7 +430,7 @@ nvrhi::BindingSetHandle TerrainPass::CreateLightBindingSet(nvrhi::ITexture* shad
 	return m_Device->createBindingSet(bindingSetDescs, m_LightBindingLayout);
 }
 
-nvrhi::GraphicsPipelineHandle TerrainPass::CreateGraphicsPipeline(PipelineKey key, nvrhi::IFramebuffer* framebuffer)
+nvrhi::GraphicsPipelineHandle TerrainPass::CreateGraphicsPipeline(const PipelineKey key, nvrhi::IFramebuffer* framebuffer)
 {
 	nvrhi::GraphicsPipelineDesc pipelineDescs;
 	pipelineDescs.inputLayout = m_InputLayout;
@@ -451,14 +451,12 @@ nvrhi::GraphicsPipelineHandle TerrainPass::CreateGraphicsPipeline(PipelineKey ke
 
 nvrhi::BufferHandle TerrainPass::CreateGeometryBuffer(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, const char* debugName, const void* data, uint64_t dataSize, bool isVertexBuffer)
 {
-	nvrhi::BufferHandle bufHandle;
-
 	nvrhi::BufferDesc desc;
 	desc.byteSize = dataSize;
 	desc.isVertexBuffer = isVertexBuffer;
 	desc.isIndexBuffer = !isVertexBuffer;
 	desc.debugName = debugName;
-	bufHandle = device->createBuffer(desc);
+	nvrhi::BufferHandle bufHandle = device->createBuffer(desc);
 
 	if (data)
 	{
@@ -470,7 +468,7 @@ nvrhi::BufferHandle TerrainPass::CreateGeometryBuffer(nvrhi::IDevice* device, nv
 	return bufHandle;
 }
 
-nvrhi::BufferHandle TerrainPass::CreateInstanceBuffer(nvrhi::IDevice* device)
+nvrhi::BufferHandle TerrainPass::CreateInstanceBuffer(nvrhi::IDevice* device) const
 {
 	nvrhi::BufferDesc bufferDesc;
 	bufferDesc.byteSize = sizeof(InstanceData) * m_Resources->instanceData.size();
