@@ -150,6 +150,7 @@ void GPUProfiler::Tick()
 	if (m_GraphicsAPI != nvrhi::GraphicsAPI::D3D12)
 		return;
 
+    PROFILE_CPU_BEGIN("Profiler::Tick");
 	PROFILE_CPU_BEGIN("Wait GPU Profiler::Tick");
 	// If the next frame is not finished resolving, wait for it here so the data can be read from before it's being reset
 	m_CopyHeap.WaitFrame(m_FrameIndex);
@@ -224,6 +225,8 @@ void GPUProfiler::Tick()
 		for (uint32 i = 0; i < (uint32)m_Queues.size(); ++i)
 			eventFrame.EventsPerQueue[i] = {};
 	}
+
+    PROFILE_CPU_END();
 #endif
 }
 

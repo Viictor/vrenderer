@@ -52,13 +52,14 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 
 	// To remove
 	m_Editor->GetUIData().m_MaxHeight = 120.0f;
-	const std::filesystem::path textureFileName = "/media/Ridge Through Terrain Height Map.png";
-	const std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
+	const std::filesystem::path textureFileName = "/media/Heightmap_01_Mountains4k.png";
+	std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
 
 	engine::TextureData* textureData = (engine::TextureData*)heightmapTexture.get();
 	if (!textureData->data)
 	{
-		log::fatal("Couldn't load %s", textureFileName.generic_string().c_str());
+		log::warning("Couldn't load %s", textureFileName.generic_string().c_str());
+        heightmapTexture.reset();
 	}
 
 	m_TerrainPass = std::make_unique<TerrainPass>(GetDevice(), m_CommonPasses, m_Editor->GetUIData());
@@ -216,13 +217,24 @@ void Renderer::RenderScene(nvrhi::IFramebuffer* framebuffer)
 
 void Renderer::SetupProfilingEvents(donut::app::DeviceManager* deviceManager)
 {
-	deviceManager->m_callbacks.beforeFrame = [](app::DeviceManager&)
+	deviceManager->m_callbacks.beforeFrame = [](app::DeviceManager& deviceManager)
 		{
 			PROFILE_FRAME();
 			PROFILE_FRAME_GPU();
+
+            int width;
+            int height;
+            glfwGetWindowSize(deviceManager.GetWindow(), &width, &height);
+            if (width == 0 || height == 0)
+            {
+                return;
+            }
+
+            PROFILE_CPU_BEGIN("Event Poll");
 		};
 	deviceManager->m_callbacks.beforeAnimate = [](app::DeviceManager&)
 		{
+            PROFILE_CPU_END();
 			PROFILE_CPU_BEGIN("Animate");
 		};
 	deviceManager->m_callbacks.afterAnimate = [](app::DeviceManager&)

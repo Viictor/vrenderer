@@ -7,7 +7,7 @@
 struct StyleOptions
 {
 	int MaxDepth = 10;
-	int MaxTime = 400;
+	int MaxTime = 20;
 
 	float BarHeight = 25;
 	float BarPadding = 0.5;
