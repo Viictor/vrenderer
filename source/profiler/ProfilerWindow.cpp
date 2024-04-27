@@ -153,13 +153,13 @@ static void DrawProfilerTimeline(const ImVec2& size = ImVec2(0, 0))
 			ImVec2 tickPos = ImVec2(cursor.x + x0, timelineRect.Min.y);
 			pDraw->AddLine(tickPos + ImVec2(0, style.BarHeight * 0.5f), tickPos + ImVec2(0, style.BarHeight), ImColor(style.BGTextColor));
 
-			if (i % 2 == 0)
+			/*if (i % 2 == 0)
 			{
 				pDraw->AddRectFilled(tickPos + ImVec2(0, style.BarHeight), tickPos + ImVec2(msWidth, timelineRect.Max.y), ImColor(1.0f, 1.0f, 1.0f, 0.02f));
 				const char* pBarText;
 				ImFormatStringToTempBuffer(&pBarText, nullptr, "%d ms", i);
 				pDraw->AddText(tickPos + ImVec2(5, 0), ImColor(style.BGTextColor), pBarText);
-			}
+			}*/
 		}
 
 		cursor.y += style.BarHeight;
@@ -307,8 +307,8 @@ static void DrawProfilerTimeline(const ImVec2& size = ImVec2(0, 0))
 			if (ImGui::ItemAdd(ImRect(trackTextCursor, trackTextCursor + ImVec2(caretSize, caretSize)), id))
 			{
 				if (ImGui::IsItemHovered())
-					pDraw->AddRect(ImGui::GetItemRectMin() + ImVec2(2, 2), ImGui::GetItemRectMax() - ImVec2(2, 2), ImColor(style.BGTextColor), 3.0f);
-				pDraw->AddText(ImGui::GetItemRectMin() + ImVec2(2, 2), ImColor(style.BGTextColor), isOpen ? /*ICON_FA_CARET_DOWN*/"v" : /*ICON_FA_CARET_RIGHT*/">");
+					pDraw->AddRect(ImGui::GetItemRectMin() + ImVec2(4, 4), ImGui::GetItemRectMax() - ImVec2(4, 4), ImColor(style.BGTextColor), 3.0f);
+				pDraw->AddText(ImGui::GetItemRectMin() + ImVec2(4, 4), ImColor(style.BGTextColor), isOpen ? /*ICON_FA_CARET_DOWN*/"v" : /*ICON_FA_CARET_RIGHT*/">");
 				if (ImGui::ButtonBehavior(ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax()), id, nullptr, nullptr, ImGuiButtonFlags_MouseButtonLeft))
 				{
 					isOpen = !isOpen;
@@ -317,6 +317,7 @@ static void DrawProfilerTimeline(const ImVec2& size = ImVec2(0, 0))
 			}
 
 			trackTextCursor.x += caretSize;
+			trackTextCursor.y += 5;
 			pDraw->AddText(trackTextCursor, ImColor(style.BGTextColor), pName);
 			return isOpen;
 		};

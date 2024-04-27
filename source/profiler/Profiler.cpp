@@ -36,6 +36,7 @@ void GPUProfiler::Initialize(
 
 		m_QueueIndexMap[pQueue] = (uint32)m_Queues.size();
 		QueueInfo& queueInfo = m_Queues.emplace_back();
+		strcpy(queueInfo.Name, "DIRECT CommandQueue");
 		uint32 size = ARRAYSIZE(queueInfo.Name);
 		pQueue->GetPrivateData(WKPDID_D3DDebugObjectName, &size, queueInfo.Name);
 		queueInfo.pQueue = pQueue;
@@ -204,7 +205,10 @@ void GPUProfiler::Tick()
 
 	m_IsPaused = m_PauseQueued;
 	if (m_IsPaused)
+	{
+		PROFILE_CPU_END();
 		return;
+	}
 
 	m_CommandListData.Reset();
 

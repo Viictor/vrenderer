@@ -17,8 +17,8 @@ using namespace vRenderer;
 using namespace donut;
 
 constexpr int MAX_INSTANCES = 4096;
-constexpr int SURFACE_SIZE = 1024;
-constexpr int WORLD_SIZE = 1024;
+constexpr int SURFACE_SIZE = 256;
+constexpr int WORLD_SIZE = 256;
 constexpr int GRID_SIZE = 16;
 
 static_assert(WORLD_SIZE >= SURFACE_SIZE && (WORLD_SIZE % SURFACE_SIZE == 0));

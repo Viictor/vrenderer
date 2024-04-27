@@ -223,6 +223,7 @@ void Renderer::RenderScene(nvrhi::IFramebuffer* framebuffer)
 
 void Renderer::SetupProfilingEvents(donut::app::DeviceManager* deviceManager)
 {
+	PROFILE_REGISTER_THREAD("Main Thread");
 	deviceManager->m_callbacks.beforeFrame = [](app::DeviceManager& deviceManager)
 		{
 			PROFILE_FRAME();
