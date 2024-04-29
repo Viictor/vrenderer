@@ -6,6 +6,7 @@ namespace vRenderer
 {
 	struct UIData
 	{
+		bool m_ShaderReoladRequested = false;
 		bool m_Wireframe = false;
 		bool m_LockView = false;
 		float m_MaxHeight = 10.0f;

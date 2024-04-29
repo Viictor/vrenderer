@@ -135,6 +135,7 @@ namespace vRenderer
 		);
 
 		void UpdateTransforms(const std::shared_ptr<QuadTree>& quadTree, const int instanceDataOffset) const;
+		void CreateShaders(engine::ShaderFactory& shaderFactory, const CreateParameters& params);
 
 		// IGeometryPass implementation
 		[[nodiscard]] engine::ViewType::Enum GetSupportedViewTypes() const override;

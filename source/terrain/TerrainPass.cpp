@@ -43,9 +43,7 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 {
 	m_SupportedViewTypes = engine::ViewType::PLANAR;
 
-	m_VertexShader = CreateVertexShader(shaderFactory, params);
-	m_PixelShader = CreatePixelShader(shaderFactory, params);
-	m_InputLayout = CreateInputLayout(m_VertexShader, params);
+	CreateShaders(shaderFactory, params);
 
 	m_TerrainViewPassCB = m_Device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(TerrainViewConstants), "TerrainViewConstants", params.numConstantBufferVersions));
 	m_TerrainLightPassCB = m_Device->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(TerrainLightConstants), "TerrainLightConstants", params.numConstantBufferVersions));
@@ -248,6 +246,18 @@ void vRenderer::TerrainPass::UpdateTransforms(const std::shared_ptr<QuadTree>& q
 
 }
 
+void TerrainPass::CreateShaders(engine::ShaderFactory& shaderFactory, const CreateParameters& params)
+{
+	m_VertexShader = CreateVertexShader(shaderFactory, params);
+	m_PixelShader = CreatePixelShader(shaderFactory, params);
+	m_InputLayout = CreateInputLayout(m_VertexShader, params);
+
+	for (int i = 0; i < PipelineKey::Count; ++i)
+	{
+		m_Pipelines[i].Reset();
+	}
+}
+
 engine::ViewType::Enum TerrainPass::GetSupportedViewTypes() const
 {
 	return m_SupportedViewTypes;
@@ -393,7 +403,7 @@ nvrhi::BindingSetHandle vRenderer::TerrainPass::GetOrCreateHeightmapBindingSet()
 	bindingSetDescs.bindings = {
 		nvrhi::BindingSetItem::Texture_SRV(0, textureLoaded ? m_Resources->heightmapTexture->texture : m_CommonPasses->m_BlackTexture, nvrhi::Format::UNKNOWN),
 		nvrhi::BindingSetItem::Texture_SRV(1, textureLoaded ? m_Resources->colorTexture->texture : m_CommonPasses->m_BlackTexture, nvrhi::Format::UNKNOWN),
-		nvrhi::BindingSetItem::Sampler(0, m_CommonPasses->m_LinearWrapSampler)
+		nvrhi::BindingSetItem::Sampler(0, m_CommonPasses->m_LinearClampSampler)
 	};
 
 	size_t hash = 0;

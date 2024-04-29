@@ -45,9 +45,6 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 	m_BindingCache = std::make_unique<engine::BindingCache>(GetDevice());
 	m_OpaqueDrawStrategy = std::make_shared<render::InstancedOpaqueDrawStrategy>();
 
-	m_DeferredLightingPass = std::make_unique<render::DeferredLightingPass>(GetDevice(), m_CommonPasses);
-	m_DeferredLightingPass->Init(m_ShaderFactory);
-
 	m_CommandList = GetDevice()->createCommandList();
 
 	// To remove
@@ -68,6 +65,8 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 
 	m_TerrainPass = std::make_unique<TerrainPass>(GetDevice(), m_CommonPasses, m_Editor->GetUIData());
 	m_TerrainPass->Init(*m_ShaderFactory, TerrainPass::CreateParameters(), m_CommandList, heightmapTexture, colorTexture, m_Executor);
+
+	CreateRenderPasses();
 
 	m_FirstPersonCamera.LookAt(float3(.0f, 120.8f, .0f), float3(1.0f, 1.8f, .0f));
 	m_FirstPersonCamera.SetMoveSpeed(20.0f);
@@ -205,20 +204,39 @@ void Renderer::RenderScene(nvrhi::IFramebuffer* framebuffer)
 
 	UpdateView();
 
-	if (createRenderTargets)
+	if (createRenderTargets || m_Editor->GetUIData().m_ShaderReoladRequested)
+	{
+		m_ShaderFactory->ClearCache();
+		CreateRenderPasses();
+		m_Editor->GetUIData().m_ShaderReoladRequested = false;
+	}
+
+	RecordCommand(framebuffer);
+	Submit();
+}
+
+void Renderer::CreateRenderPasses()
+{
+	m_DeferredLightingPass = std::make_unique<render::DeferredLightingPass>(GetDevice(), m_CommonPasses);
+	m_DeferredLightingPass->Init(m_ShaderFactory);
+
+	render::GBufferFillPass::CreateParameters gbufferParams;
+	m_GBufferPass = std::make_unique<render::GBufferFillPass>(GetDevice(), m_CommonPasses);
+	m_GBufferPass->Init(*m_ShaderFactory, gbufferParams);
+
+	//m_TerrainPass = std::make_unique<TerrainPass>(GetDevice(), m_CommonPasses, m_Editor->GetUIData());
+	if (m_TerrainPass)
+		m_TerrainPass->CreateShaders(*m_ShaderFactory, TerrainPass::CreateParameters());
+	else
+		log::warning("Terrain Pass not initialized");
+
+	if (m_RenderTargets)
 	{
 		m_SkyPass = std::make_unique<render::SkyPass>(GetDevice(), m_ShaderFactory, m_CommonPasses, m_RenderTargets->LdrFramebuffer, m_View);
 
 		ToneMappingPass::CreateParameters toneMappingParams;
 		m_ToneMappingPass = std::make_unique<render::ToneMappingPass>(GetDevice(), m_ShaderFactory, m_CommonPasses, m_RenderTargets->LdrFramebuffer, m_View, toneMappingParams);
-
-		render::GBufferFillPass::CreateParameters gbufferParams;
-		m_GBufferPass = std::make_unique<render::GBufferFillPass>(GetDevice(), m_CommonPasses);
-		m_GBufferPass->Init(*m_ShaderFactory, gbufferParams);
 	}
-
-	RecordCommand(framebuffer);
-	Submit();
 }
 
 void Renderer::SetupProfilingEvents(donut::app::DeviceManager* deviceManager)
@@ -388,6 +406,9 @@ void Renderer::RenderUI(Editor& editor)
 	double frameTime = editor.GetDeviceManager()->GetAverageFrameTimeSeconds();
 	if (frameTime > 0.0)
 		ImGui::Text("%.3f ms/frame (%.1f FPS)", frameTime * 1e3, 1.0 / frameTime);
+
+	if (ImGui::Button("Reload Shaders"))
+		editor.GetUIData().m_ShaderReoladRequested = true;
 
 	ImGui::Checkbox("Wireframe", &editor.GetUIData().m_Wireframe);
 	ImGui::Checkbox("Lock View", &editor.GetUIData().m_LockView);

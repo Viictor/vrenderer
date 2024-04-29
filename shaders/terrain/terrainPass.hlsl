@@ -23,7 +23,7 @@ cbuffer c_TerrainParams : register(b2 VK_DESCRIPTOR_SET(2))
 
 Texture2D t_Heightmap : register(t0);
 Texture2D t_Color : register(t1);
-SamplerState s_LinearWarpSampler : register(s0);
+SamplerState s_LinearClampSampler : register(s0);
 
 // morphs input vertex uv from high to low detailed mesh position
 //  - gridPos: normalized [0, 1] .xy grid position of the source vertex
@@ -51,7 +51,7 @@ float sampleHeight(float2 worldPos)
     const float halfSize = c_TerrainParams.worldSize * 0.5;
     float2 uv = (worldPos + halfSize) / c_TerrainParams.worldSize;
     
-    return t_Heightmap.SampleLevel(s_LinearWarpSampler, uv, 0.1).r * c_TerrainParams.maxHeight;
+    return t_Heightmap.SampleLevel(s_LinearClampSampler, uv, 0.1).r * c_TerrainParams.maxHeight;
 }
 
 float3 sampleColor(float2 worldPos)
@@ -59,7 +59,7 @@ float3 sampleColor(float2 worldPos)
     const float halfSize = c_TerrainParams.worldSize * 0.5;
     float2 uv = (worldPos + halfSize) / c_TerrainParams.worldSize;
     
-    return t_Color.Sample(s_LinearWarpSampler, uv).rgb;
+    return t_Color.Sample(s_LinearClampSampler, uv).rgb;
 }
 
 float sampleHeight(float2 worldPos, float2 offset)
@@ -67,7 +67,7 @@ float sampleHeight(float2 worldPos, float2 offset)
     const float halfSize = c_TerrainParams.worldSize * 0.5;
     float2 uv = (worldPos + halfSize) / c_TerrainParams.worldSize;
     
-    return t_Heightmap.Sample(s_LinearWarpSampler, uv + offset).r;
+    return t_Heightmap.Sample(s_LinearClampSampler, uv + offset).r;
 }
 
 void main_vs(
@@ -111,7 +111,7 @@ void main_ps(
 
     //MaterialSample surface = EvaluateSceneMaterial(i_vtx.normal, i_vtx.tangent, g_Material, textures);
     
-    float offset = .01;
+    float offset = .1;
     float hDx = sampleHeight(i_vtx.pos.xz, float2(offset, 0.0)) - sampleHeight(i_vtx.pos.xz, float2(-offset, 0.0));
     float hDy = sampleHeight(i_vtx.pos.xz, float2(0.0, offset)) - sampleHeight(i_vtx.pos.xz ,float2(0.0, -offset));
     

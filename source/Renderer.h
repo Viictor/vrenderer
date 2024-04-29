@@ -159,6 +159,8 @@ namespace vRenderer
 
 		std::unique_ptr<Editor> m_Editor;
 
+		void CreateRenderPasses();
+
 		void SetupProfilingEvents(donut::app::DeviceManager* deviceManager);
 		void UpdateView();
 		void RecordCommand(nvrhi::IFramebuffer* framebuffer) const;
