@@ -1,3 +1,5 @@
+#include <ShellScalingApi.h>
+
 #include <donut/app/ApplicationBase.h>
 #include <donut/app/DeviceManager.h>
 #include <donut/core/log.h>
@@ -27,6 +29,18 @@ int main(int __argc, const char** __argv)
     app::InstanceParameters instanceParams;
     instanceParams.enableDebugRuntime = deviceParams.enableDebugRuntime;
     instanceParams.headlessDevice = false;
+
+#ifdef _WINDOWS
+    if (deviceParams.enablePerMonitorDPI)
+    {
+        // this needs to happen before glfwInit in order to override GLFW behavior
+        SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+    }
+    else {
+        SetProcessDpiAwareness(PROCESS_DPI_UNAWARE);
+    }
+#endif
+
     deviceManager->CreateInstance(instanceParams);
 
     std::vector<donut::app::AdapterInfo> adapters;
@@ -36,6 +50,7 @@ int main(int __argc, const char** __argv)
         if (adapters[i].name.find("NV") != std::string::npos)
         {
             deviceParams.adapterIndex = i;
+            break;
         }
     }
 
