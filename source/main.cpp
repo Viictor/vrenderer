@@ -4,7 +4,9 @@
 #include <taskflow/taskflow.hpp>
 
 #include "profiler/Profiler.h"
+#include "editor/Editor.h"
 #include "Renderer.h"
+
 
 using namespace donut;
 
@@ -40,9 +42,28 @@ int main(int __argc, const char** __argv)
 
     {
         tf::Executor executor;
-        const std::shared_ptr<vRenderer::Renderer> Renderer = std::make_shared<vRenderer::Renderer>(deviceManager, executor);
-        deviceManager->AddRenderPassToFront(Renderer.get());
+        const std::shared_ptr<vRenderer::Renderer> renderer = std::make_shared<vRenderer::Renderer>(deviceManager, executor);
+        const std::shared_ptr<vRenderer::Editor> editor = std::make_unique<vRenderer::Editor>(deviceManager, renderer->GetRootFs(), *renderer);
 
+		// Editor Windows
+		editor->Init(renderer->GetShaderFactory());
+        editor->AddEditorWindow(new vRenderer::EditorWindowCallback([renderer]()
+            {
+                renderer->RenderUI();
+            }));
+
+        // Render Passes
+        deviceManager->AddRenderPassToBack(renderer.get());
+        deviceManager->AddRenderPassToBack(editor.get());
+
+        // Loading Cube.GLTF scene
+		{
+			std::filesystem::path scenePath = "/media/gltfScenes";
+        	std::vector<std::string> sceneFilesAvailable = app::FindScenes(*renderer->GetRootFs(), scenePath);
+        	std::string sceneName = app::FindPreferredScene(sceneFilesAvailable, "Cube.gltf");
+
+        	renderer->BeginLoadingScene(renderer->GetRootFs(), sceneName);
+		}
         deviceManager->RunMessageLoop();
         
         executor.wait_for_all();

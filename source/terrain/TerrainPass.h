@@ -18,7 +18,7 @@ using namespace donut::render;
 
 namespace vRenderer
 {
-	struct UIData;
+	struct EditorParams;
 
 	class TerrainPass : public IGeometryPass
 	{
@@ -87,7 +87,7 @@ namespace vRenderer
 		bool m_TrackLiveness = true;
 		std::mutex m_Mutex;
 		RenderParams m_RenderParams;
-		UIData& m_UIData;
+		float m_MaxHeight = 1.0f;
 
 		std::vector<std::shared_ptr<QuadTree>> m_QuadTrees;
 
@@ -119,7 +119,7 @@ namespace vRenderer
 		nvrhi::BufferHandle CreateInstanceBuffer(nvrhi::IDevice* device) const;
 
 	public:
-		TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData);
+		TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses);
 		void Init(engine::ShaderFactory& shaderFactory, 
 			const CreateParameters& params, 
 			nvrhi::ICommandList* commandList, 
@@ -131,7 +131,8 @@ namespace vRenderer
 			const engine::ICompositeView* compositeView,
 			const engine::ICompositeView* compositeViewPrev,
 			engine::FramebufferFactory& framebufferFactory,
-			const RenderParams& renderParams
+			const RenderParams& renderParams,
+			EditorParams& editorParams
 		);
 
 		void UpdateTransforms(const std::shared_ptr<QuadTree>& quadTree, const int instanceDataOffset) const;

@@ -13,7 +13,6 @@
 #include "donut/render/SkyPass.h"
 #include "donut/render/ToneMappingPasses.h"
 
-#include "editor/Editor.h"
 #include "terrain/TerrainPass.h"
 
 namespace tf
@@ -30,6 +29,20 @@ namespace donut::engine
 
 namespace vRenderer
 {
+	struct EditorParams
+	{
+		// Terrain params
+		bool m_RenderTerrain = true;
+		bool m_Wireframe = false;
+		bool m_LockView = false;
+		float m_MaxHeight = 120.0f;
+		uint32_t m_NumChunks = 0;
+
+		float m_AmbientIntensity = 0.01f;
+
+		bool m_ShaderReoladRequested = false;
+	};
+
 	class RenderTargets : public donut::render::GBufferRenderTargets
 	{
 	public:
@@ -102,11 +115,6 @@ namespace vRenderer
 			return m_RootFs;
 		}
 
-		std::string GetCurrentSceneName() const
-		{
-			return m_CurrentSceneName;
-		}
-
 		std::shared_ptr<donut::engine::ShaderFactory> GetShaderFactory() const
 		{
 			return m_ShaderFactory;
@@ -121,6 +129,8 @@ namespace vRenderer
 		void Animate(float seconds) override;
 		void RenderScene(nvrhi::IFramebuffer* framebuffer) override;
 
+		void RenderUI();
+
 	private:
 
 		const char* m_WindowTitle = "vRenderer";
@@ -129,9 +139,7 @@ namespace vRenderer
 		std::shared_ptr<donut::vfs::RootFileSystem> m_RootFs;
 		std::shared_ptr<donut::engine::ShaderFactory> m_ShaderFactory;
 
-		std::vector<std::string> m_SceneFilesAvailable;
 		std::shared_ptr<donut::engine::Scene> m_Scene;
-		std::string m_CurrentSceneName;
 
 		donut::app::FirstPersonCamera m_FirstPersonCamera;
 
@@ -157,15 +165,13 @@ namespace vRenderer
 		// Basic 2D projection
 		donut::engine::PlanarView m_View;
 
-		std::unique_ptr<Editor> m_Editor;
-
 		void CreateRenderPasses();
 
 		void SetupProfilingEvents(donut::app::DeviceManager* deviceManager);
 		void UpdateView();
-		void RecordCommand(nvrhi::IFramebuffer* framebuffer) const;
+		void RecordCommand(nvrhi::IFramebuffer* framebuffer);
 		void Submit();
 
-		void RenderUI(Editor& editor);
+		EditorParams m_EditorParams;
 	};
 }

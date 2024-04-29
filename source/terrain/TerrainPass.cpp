@@ -8,9 +8,8 @@
 #include <nvrhi/utils.h>
 #include <donut/shaders/bindless.h>
 
-#include "../editor/Editor.h"
-
 #include "../profiler/Profiler.h"
+#include "../Renderer.h"
 
 using namespace donut::math;
 #include "../../shaders/terrain/terrain_cb.h"
@@ -32,9 +31,8 @@ struct TerrainPass::Resources
 	std::shared_ptr<engine::LoadedTexture> colorTexture;
 };
 
-TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses, UIData& uiData)
+TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonRenderPasses> commonPasses)
 	: m_Device(device)
-	, m_UIData(uiData)
 	, m_CommonPasses(std::move(commonPasses))
 {
 	m_Resources = std::make_shared<Resources>();
@@ -150,12 +148,19 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 	m_MeshInfo->geometries.push_back(geometry);
 }
 
-void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompositeView* compositeView, const engine::ICompositeView* compositeViewPrev, engine::FramebufferFactory& framebufferFactory, const RenderParams& renderParams)
+void TerrainPass::Render(
+	nvrhi::ICommandList* commandList, 
+	const engine::ICompositeView* compositeView, 
+	const engine::ICompositeView* compositeViewPrev, 
+	engine::FramebufferFactory& framebufferFactory, 
+	const RenderParams& renderParams,
+	EditorParams& editorParams)
 {
 	PROFILE_CPU_SCOPE();
 	commandList->beginMarker("TerrainPass");
 
 	m_RenderParams = renderParams;
+	m_MaxHeight = editorParams.m_MaxHeight;
 
 	const engine::ViewType::Enum supportedViewTypes = GetSupportedViewTypes();
 
@@ -172,14 +177,14 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 		assert(view != nullptr);
 
+		editorParams.m_NumChunks = 0;
 		if (!m_RenderParams.lockView)
 		{
 			int instanceDataOffset = 0;
-			m_UIData.m_NumChunks = 0;
 			for (const auto& quadTree : m_QuadTrees)
 			{
 				quadTree->ClearSelectedNodes();
-				quadTree->NodeSelect(float3(view->GetViewOrigin()), quadTree->GetRootNode().get(), quadTree->GetNumLods() - 1, view->GetViewFrustum(), m_UIData.m_MaxHeight);
+				quadTree->NodeSelect(float3(view->GetViewOrigin()), quadTree->GetRootNode().get(), quadTree->GetNumLods() - 1, view->GetViewFrustum(), editorParams.m_MaxHeight);
 
 				UpdateTransforms(quadTree, instanceDataOffset);
 
@@ -216,7 +221,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 				const std::shared_ptr<QuadTree>& quadTree = m_QuadTrees[i];
 				int numNodes = int(quadTree->GetSelectedNodes().size());
 
-				m_UIData.m_NumChunks += numNodes;
+				editorParams.m_NumChunks += numNodes;
 				args.instanceCount += numNodes;
 			}
 			commandList->drawIndexed(args);
@@ -279,7 +284,7 @@ void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* c
 	TerrainParamsConstants paramsConstants = {};
 	paramsConstants.worldSize = WORLD_SIZE;
 	paramsConstants.surfaceSize = (float)SURFACE_SIZE;
-	paramsConstants.maxHeight = m_UIData.m_MaxHeight;
+	paramsConstants.maxHeight = m_MaxHeight;
 	paramsConstants.gridSize = GRID_SIZE;
 
 	if (!m_QuadTrees.empty())

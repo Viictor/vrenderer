@@ -12,6 +12,7 @@
 #include "donut/render/ToneMappingPasses.h"
 
 #include "profiler/Profiler.h"
+#include "editor/Editor.h"
 
 using namespace vRenderer;
 using namespace donut;
@@ -36,10 +37,6 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 	m_RootFs->mount("/native", nativeFS);
 
 	m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), m_RootFs, "/shaders");
-
-	m_Editor = std::make_unique<Editor>(deviceManager, m_RootFs);
-	m_Editor->Init(m_ShaderFactory);
-
 	m_TextureCache = std::make_shared<engine::TextureCache>(GetDevice(), m_RootFs, nullptr);
 	m_CommonPasses = std::make_shared<engine::CommonRenderPasses>(GetDevice(), m_ShaderFactory);
 	m_BindingCache = std::make_unique<engine::BindingCache>(GetDevice());
@@ -48,7 +45,6 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 	m_CommandList = GetDevice()->createCommandList();
 
 	// To remove
-	m_Editor->GetUIData().m_MaxHeight = 120.0f;
 	const std::filesystem::path textureFileName = "/media/Rugged Terrain Height Map PNG2k.png";
 	std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
 
@@ -63,31 +59,13 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 		colorTexture.reset();
 	}
 
-	m_TerrainPass = std::make_unique<TerrainPass>(GetDevice(), m_CommonPasses, m_Editor->GetUIData());
+	m_TerrainPass = std::make_unique<TerrainPass>(GetDevice(), m_CommonPasses);
 	m_TerrainPass->Init(*m_ShaderFactory, TerrainPass::CreateParameters(), m_CommandList, heightmapTexture, colorTexture, m_Executor);
 
 	CreateRenderPasses();
 
-	m_FirstPersonCamera.LookAt(float3(.0f, 120.8f, .0f), float3(1.0f, 1.8f, .0f));
+	m_FirstPersonCamera.LookAt(float3(0.0f, 205.0f, 227.4f), float3(1.0f, 1.8f, .0f));
 	m_FirstPersonCamera.SetMoveSpeed(20.0f);
-
-	
-
-	m_Editor->AddEditorWindow(new EditorWindowCallback([this](Editor& editor)
-	{
-		RenderUI(editor);
-	}));
-	deviceManager->AddRenderPassToBack(m_Editor.get());
-
-
-	std::filesystem::path scenePath = "/media/gltfScenes";
-	m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
-	std::string sceneName = app::FindPreferredScene(m_SceneFilesAvailable, "Cube.gltf");
-
-	m_CurrentSceneName = sceneName;
-	ApplicationBase::BeginLoadingScene(m_RootFs, sceneName);
-
-	//ApplicationBase::SceneLoaded();
 }
 
 bool Renderer::LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& fileName)
@@ -204,11 +182,11 @@ void Renderer::RenderScene(nvrhi::IFramebuffer* framebuffer)
 
 	UpdateView();
 
-	if (createRenderTargets || m_Editor->GetUIData().m_ShaderReoladRequested)
+	if (createRenderTargets || m_EditorParams.m_ShaderReoladRequested)
 	{
 		m_ShaderFactory->ClearCache();
 		CreateRenderPasses();
-		m_Editor->GetUIData().m_ShaderReoladRequested = false;
+		m_EditorParams.m_ShaderReoladRequested = false;
 	}
 
 	RecordCommand(framebuffer);
@@ -299,7 +277,7 @@ void Renderer::UpdateView()
 	m_View.UpdateCache();
 }
 
-void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
+void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer)
 {
 	m_CommandList->open();
 	{
@@ -313,10 +291,9 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 
 		m_RenderTargets->Clear(m_CommandList);
 
-		render::GBufferFillPass::Context context;
-
 		if (m_Scene && m_Scene->GetSceneGraph())
 		{
+			render::GBufferFillPass::Context context;
 			PROFILE_GPU_SCOPE(m_CommandList, "GBuffer fill");
 			render::RenderCompositeView(
 				m_CommandList,
@@ -331,19 +308,20 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 				true);
 		}
 
-		if (m_Editor->GetUIData().m_RenderTerrain)
+		if (m_EditorParams.m_RenderTerrain)
 		{
 			PROFILE_GPU_SCOPE(m_CommandList, "Terrain");
 			vRenderer::TerrainPass::RenderParams renderParams;
-			renderParams.wireframe = m_Editor->GetUIData().m_Wireframe;
-			renderParams.lockView = m_Editor->GetUIData().m_LockView;
+			renderParams.wireframe = m_EditorParams.m_Wireframe;
+			renderParams.lockView = m_EditorParams.m_LockView;
 
 			m_TerrainPass->Render(
 				m_CommandList,
 				&m_View,
 				&m_View,
 				*m_RenderTargets->GBufferFramebuffer,
-				renderParams);
+				renderParams,
+				m_EditorParams);
 		}
 
 		if (m_Scene && m_Scene->GetSceneGraph())
@@ -351,7 +329,7 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 			PROFILE_GPU_SCOPE(m_CommandList, "Deferred Lighting");
 			render::DeferredLightingPass::Inputs deferredInputs;
 			deferredInputs.SetGBuffer(*m_RenderTargets);
-			deferredInputs.ambientColorTop = m_Editor->GetUIData().m_AmbientIntensity;
+			deferredInputs.ambientColorTop = m_EditorParams.m_AmbientIntensity;
 			deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
 			deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
 			deferredInputs.output = m_RenderTargets->HdrColor;
@@ -387,76 +365,26 @@ void Renderer::Submit()
 	GetDevice()->executeCommandList(m_CommandList);
 }
 
-void Renderer::RenderUI(Editor& editor)
+void Renderer::RenderUI()
 {
-	ImGui::SetNextWindowPos(ImVec2(10.f, 10.f), 0);
-	ImGui::Begin("Settings", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar);
-
-	if (ImGui::BeginMenuBar())
-	{
-		if (ImGui::BeginMenu("Menu"))
-		{
-			ImGui::MenuItem("Profiler", NULL, &editor.GetUIData().m_ProfilerOpen);
-			ImGui::MenuItem("Open", 0, &editor.GetUIData().m_FileOpen);
-			ImGui::EndMenu();
-		}
-		ImGui::EndMenuBar();
-	}
-
-	ImGui::Text("Renderer: %s", editor.GetDeviceManager()->GetRendererString());
-	double frameTime = editor.GetDeviceManager()->GetAverageFrameTimeSeconds();
-	if (frameTime > 0.0)
-		ImGui::Text("%.3f ms/frame (%.1f FPS)", frameTime * 1e3, 1.0 / frameTime);
-
 	if (ImGui::Button("Reload Shaders"))
-		editor.GetUIData().m_ShaderReoladRequested = true;
+		m_EditorParams.m_ShaderReoladRequested = true;
 
+	ImGui::Separator();
 	ImGui::Text("Terrain");
-	ImGui::Checkbox("Enable Terrain", &editor.GetUIData().m_RenderTerrain);
-	ImGui::Checkbox("Wireframe", &editor.GetUIData().m_Wireframe);
-	ImGui::Checkbox("Lock View", &editor.GetUIData().m_LockView);
-	ImGui::InputFloat("Max Height", &editor.GetUIData().m_MaxHeight, 1.0);
-	ImGui::Text("Num instances : %i", editor.GetUIData().m_NumChunks);
-
+	ImGui::Separator();
+	ImGui::Checkbox("Enable Terrain", &m_EditorParams.m_RenderTerrain);
+	ImGui::Checkbox("Wireframe", &m_EditorParams.m_Wireframe);
+	ImGui::Checkbox("Lock View", &m_EditorParams.m_LockView);
+	ImGui::InputFloat("Max Height", &m_EditorParams.m_MaxHeight, 1.0);
+	ImGui::Text("Num instances : %i", m_EditorParams.m_NumChunks);
 
 	if (m_DirectionalLight)
 	{
+		ImGui::Separator();
 		ImGui::Text("Sun Light");
-		ImGui::InputFloat("Ambient Intensity", &editor.GetUIData().m_AmbientIntensity, 0.01f);
+		ImGui::Separator();
+		ImGui::InputFloat("Ambient Intensity", &m_EditorParams.m_AmbientIntensity, 0.01f);
 		app::LightEditor(*m_DirectionalLight);
-	}
-	ImGui::End();
-
-	if (editor.GetUIData().m_ProfilerOpen)
-	{
-
-		ImVec2 viewportSize = ImGui::GetMainViewport()->WorkSize;
-		ImGui::SetNextWindowPos(ImVec2(380.f, 10.f), 0);
-		ImGui::SetNextWindowSize(ImVec2(viewportSize.x - 390.0f, donut::math::max(290.0f, editor.GetUIData().m_ProfilerWindowHeight)));
-		ImGui::Begin("Profiler", &editor.GetUIData().m_ProfilerOpen, ImGuiWindowFlags_NoResize);
-		DrawProfilerHUD(editor.GetUIData().m_ProfilerWindowHeight);
-		ImGui::End();
-	}
-	
-	if (editor.GetUIData().m_FileOpen)
-	{
-		std::string filename;
-		bool result = app::FileDialog(true, ".gltf", filename);
-		editor.GetUIData().m_FileOpen = false;
-
-		if (result)
-		{
-			std::string token = filename.substr(filename.find_last_of("\\") + 1, filename.length());
-
-			std::filesystem::path scenePath = "/media/gltfScenes";
-			m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
-			std::string sceneName = app::FindPreferredScene(m_SceneFilesAvailable, token);
-
-			if (!sceneName.empty())
-			{
-				m_CurrentSceneName = sceneName;
-				ApplicationBase::BeginLoadingScene(m_RootFs, sceneName);
-			}
-		}
 	}
 }
