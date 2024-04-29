@@ -4,39 +4,47 @@
 #include <donut/core/vfs/VFS.h>
 #include <taskflow/taskflow.hpp>
 
-void QuadTree::Init(std::shared_ptr<engine::LoadedTexture> loadedTexture, tf::Executor& executor)
+QuadTree::QuadTree(const float width, const float height, const float worldSize, const float3 location)
+	: m_Location(location)
+	, m_Width(width)
+	, m_Height(height)
+	, m_WorldSize(worldSize)
 {
-	engine::TextureData* textureData = static_cast<engine::TextureData*>(loadedTexture.get());
+	InitLodRanges();
+}
 
-	m_NumLods = min(MAX_LODS, int(log2(m_Width) + 1));
-	size_t dataSize = textureData->dataLayout[0][0].dataSize;
+void QuadTree::Init(const std::shared_ptr<engine::LoadedTexture>& loadedTexture, tf::Executor& executor)
+{
+	const engine::TextureData* textureData = static_cast<engine::TextureData*>(loadedTexture.get());
+
+	m_NumLods = min(MAX_LODS, static_cast<int>(log2(m_Width) + 1));
+	const size_t dataSize = textureData->dataLayout[0][0].dataSize;
 	if (dataSize > 0)
 	{
 		m_HeightmapData.width = textureData->width;
 		m_HeightmapData.height = textureData->height;
 		m_HeightmapData.data = malloc(dataSize);
-		m_TexelSize = float2(m_HeightmapData.width / m_WorldSize, m_HeightmapData.height / m_WorldSize);
+		m_TexelSize = float2(static_cast<float>(m_HeightmapData.width) / m_WorldSize, static_cast<float>(m_HeightmapData.height) / m_WorldSize);
 
-		memcpy(m_HeightmapData.data, (void*)textureData->data->data(), dataSize);
+		memcpy(m_HeightmapData.data, textureData->data->data(), dataSize);
 	}
 	else
 	{
 		m_HeightmapData.width = 0;
 		m_HeightmapData.height = 0;
-		m_TexelSize = float2(m_HeightmapData.width / m_WorldSize, m_HeightmapData.height / m_WorldSize);
+		m_TexelSize = float2(0.0f, 0.0f);
 
 		log::error("Heightmap texture data missing for QuadTree generation");
-
 	}
 
 	m_RootNode = std::make_unique<Node>(m_Location, float3(m_Width / 2.0f, 0.0, m_Height / 2.0f));
 
-	int numSplits = 1;
+	const int numSplits = 1;
 	Split(m_RootNode.get(), numSplits);
 
 	executor.silent_async([this]()
 		{
-			int numSplits = 0;
+			const int numSplits = 0;
 			SetHeight(m_RootNode.get(), numSplits);
 			m_HeightLoaded = true;
 			log::info("QuadTree nodes height set");
@@ -60,15 +68,16 @@ void QuadTree::Print(const Node* node, int level)
 
 void QuadTree::PrintSelected() const
 {
-	auto nodes = GetSelectedNodes();
+	const std::vector<const Node*> nodes = GetSelectedNodes();
 	log::info("Selected Nodes");
-	for (int i = 0; i < nodes.size(); i++)
+	for (const Node* node : nodes)
 	{
-		log::info("Node Pos: %f, %f %f. Extents: %f, %f %f.", nodes[i]->m_Position.x, nodes[i]->m_Position.y, nodes[i]->m_Position.z, nodes[i]->m_Extents.x, nodes[i]->m_Extents.y, nodes[i]->m_Extents.z);
+		log::info("Node Pos: %f, %f %f. Extents: %f, %f %f.", node->m_Position.x, node->m_Position.y, node->m_Position.z,
+		          node->m_Extents.x, node->m_Extents.y, node->m_Extents.z);
 	}
 }
 
-bool QuadTree::NodeSelect(const float3 position, const Node* node, int lodLevel, const dm::frustum& frustum, const float maxHeight)
+bool QuadTree::NodeSelect(const float3 position, const Node* node, const int lodLevel, const dm::frustum& frustum, const float maxHeight)
 {
 	if (!node->Intersects(position, m_LodRanges[lodLevel] * m_LodRanges[lodLevel])) // discard nodes out of range
 		return false;
@@ -117,35 +126,35 @@ bool QuadTree::NodeSelect(const float3 position, const Node* node, int lodLevel,
 	return true;
 }
 
-float QuadTree::GetHeightValue(float2 position)
+float QuadTree::GetHeightValue(const float2 position) const
 {
-	const uint8_t* byteData = reinterpret_cast<const uint8_t*>(m_HeightmapData.data);
+	const uint8_t* byteData = static_cast<const uint8_t*>(m_HeightmapData.data);
 
-	int index = static_cast<int>(position.x + position.y * m_HeightmapData.width);
+	const int index = static_cast<int>(position.x + position.y * static_cast<float>(m_HeightmapData.width));
 
-	float heightValue = static_cast<float>(byteData[index]) / 255.0f;
+	const float heightValue = static_cast<float>(byteData[index]) / 255.0f;
 
 	return heightValue;
 }
 
-float2 QuadTree::GetMinMaxHeightValue(float2 position, float width, float height)
+float2 QuadTree::GetMinMaxHeightValue(const float2 position, const float width, const float height) const
 {
 	float2 minV = position - float2(width / 2, height / 2);
 	minV += float2(m_WorldSize / 2, m_WorldSize / 2);
 	minV *= m_TexelSize;
 
-	float2 maxV = minV + float2(width, height) * m_TexelSize;
+	const float2 maxV = minV + float2(width, height) * m_TexelSize;
 
-	int2 limitX = int2(int(minV.x), int(maxV.x));
-	int2 limitY = int2(int(minV.y), int(maxV.y));
+	const int2 limitX = int2(static_cast<int>(minV.x), static_cast<int>(maxV.x));
+	const int2 limitY = int2(static_cast<int>(minV.y), static_cast<int>(maxV.y));
 
 	float2 minMax = float2(infinity, -infinity);
 	for (int i = limitX.x; i < limitX.y; i++)
 	{
 		for (int j = limitY.x; j < limitY.y; j++)
 		{
-			minMax.x = min(minMax.x, GetHeightValue(float2(float(i),float(j))));
-			minMax.y = max(minMax.y, GetHeightValue(float2(float(i),float(j))));
+			minMax.x = min(minMax.x, GetHeightValue(float2(static_cast<float>(i),static_cast<float>(j))));
+			minMax.y = max(minMax.y, GetHeightValue(float2(static_cast<float>(i),static_cast<float>(j))));
 		}
 	}
 	return minMax;
@@ -153,9 +162,9 @@ float2 QuadTree::GetMinMaxHeightValue(float2 position, float width, float height
 
 void QuadTree::SetHeight(Node* node, int numSplits)
 {
-	float2 minMax = GetMinMaxHeightValue(float2(node->m_Position.x, node->m_Position.z), node->m_Extents.x * 2.0f, node->m_Extents.z * 2.0f);
+	const float2 minMax = GetMinMaxHeightValue(float2(node->m_Position.x, node->m_Position.z), node->m_Extents.x * 2.0f, node->m_Extents.z * 2.0f);
 
-	float extent = (minMax.y - minMax.x) / 2.0f;
+	const float extent = (minMax.y - minMax.x) / 2.0f;
 
 	node->m_Position.y = minMax.x + extent;
 	node->m_Extents.y = extent;
@@ -172,11 +181,11 @@ void QuadTree::SetHeight(Node* node, int numSplits)
 
 void QuadTree::Split(Node* node, int numSplits)
 {
-	float3 extents = node->m_Extents / 2.0f;
-	float3 position0 = node->m_Position + float3(-extents.x, 0.0f, extents.z);
-	float3 position1 = node->m_Position + extents;
-	float3 position2 = node->m_Position - extents;
-	float3 position3 = node->m_Position - float3(-extents.x, 0.0f, extents.z);
+	const float3 extents = node->m_Extents / 2.0f;
+	const float3 position0 = node->m_Position + float3(-extents.x, 0.0f, extents.z);
+	const float3 position1 = node->m_Position + extents;
+	const float3 position2 = node->m_Position - extents;
+	const float3 position3 = node->m_Position - float3(-extents.x, 0.0f, extents.z);
 
 	node->m_Children[Node::TL] = new Node(position0, extents);
 	node->m_Children[Node::TR] = new Node(position1, extents);
@@ -196,9 +205,10 @@ void QuadTree::Split(Node* node, int numSplits)
 
 void QuadTree::InitLodRanges()
 {
-	float minLodDistance = 4.0f;
+	const float minLodDistance = 4.0f;
 	for (int i = 0; i < MAX_LODS; i++)
 	{
-		m_LodRanges[i] = minLodDistance * pow(2.0f, float(i));
+		m_LodRanges[i] = minLodDistance * pow(2.0f, static_cast<float>(i));
 	}
 }
+

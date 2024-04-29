@@ -10,6 +10,8 @@
 
 #include "../editor/Editor.h"
 
+#include "../profiler/Profiler.h"
+
 using namespace donut::math;
 #include "../../shaders/terrain/terrain_cb.h"
 
@@ -150,6 +152,7 @@ void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParamet
 
 void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompositeView* compositeView, const engine::ICompositeView* compositeViewPrev, engine::FramebufferFactory& framebufferFactory, const RenderParams& renderParams)
 {
+	PROFILE_CPU_SCOPE();
 	commandList->beginMarker("TerrainPass");
 
 	m_RenderParams = renderParams;
@@ -225,6 +228,7 @@ void TerrainPass::Render(nvrhi::ICommandList* commandList, const engine::ICompos
 
 void vRenderer::TerrainPass::UpdateTransforms(const std::shared_ptr<QuadTree>& quadTree, const int instanceDataOffset) const
 {
+	PROFILE_CPU_SCOPE();
 	auto& nodes = quadTree->GetSelectedNodes();
 	assert(static_cast<int>(nodes.size()) < MAX_INSTANCES);
 
@@ -265,6 +269,7 @@ engine::ViewType::Enum TerrainPass::GetSupportedViewTypes() const
 
 void TerrainPass::SetupView(GeometryPassContext& context, nvrhi::ICommandList* commandList, const engine::IView* view, const engine::IView* viewPrev)
 {
+	PROFILE_CPU_SCOPE();
 	Context& terrainContext = (Context&)context;
 
 	TerrainViewConstants viewConstants = {};

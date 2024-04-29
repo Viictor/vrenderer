@@ -23,10 +23,10 @@ struct Node
 		m_Children.fill(nullptr);
 	};
 
-	bool Intersects(float3 position, float radius) const
+	bool Intersects(const float3 position, const float radius) const
 	{
-		float3 min = m_Position - m_Extents;
-		float3 max = m_Position + m_Extents;
+		const float3 min = m_Position - m_Extents;
+		const float3 max = m_Position + m_Extents;
 		float3 distance = float3(0.0,0.0, 0.0);
 
 		if (position.x < min.x) distance.x = (position.x - min.x);
@@ -76,8 +76,8 @@ private:
 	float m_WorldSize;
 	float2 m_TexelSize;
 
-	float GetHeightValue(float2 position);
-	float2 GetMinMaxHeightValue(float2 position, float width, float height);
+	float GetHeightValue(float2 position) const;
+	float2 GetMinMaxHeightValue(float2 position, float width, float height) const;
 
 	void Split(Node* node, int numSplits = 0);
 
@@ -86,11 +86,7 @@ private:
 	void InitLodRanges();
 
 public:
-	QuadTree(const float width, const float height,  float worldSize, const float3 location = float3(0.0f, 0.0f, 0.0f)) 
-		: m_Width(width), m_Height(height), m_Location(location), m_WorldSize(worldSize)
-	{
-		InitLodRanges();
-	};
+	QuadTree(const float width, const float height,  float worldSize, const float3 location = float3(0.0f, 0.0f, 0.0f));
 
 	~QuadTree()
 	{
@@ -98,21 +94,21 @@ public:
 			free(m_HeightmapData.data);
 	}
 
-	void Init(std::shared_ptr<engine::LoadedTexture> textureData, tf::Executor& executor);
+	void Init(const std::shared_ptr<engine::LoadedTexture>& loadedTexture, tf::Executor& executor);
 
-	void Print(const Node* node, int level);
+	static void Print(const Node* node, int level);
 
 	void PrintSelected() const;
 
 	bool NodeSelect(const float3 position, const Node* node, int lodLevel, const dm::frustum& frustum, const float maxHeight);
 
-	const std::vector<const Node*> GetSelectedNodes() const { return m_SelectedNodes; };
+	const std::vector<const Node*> GetSelectedNodes() const { return m_SelectedNodes; }
 
-	const std::unique_ptr<Node>& GetRootNode() const { return m_RootNode; };
+	const std::unique_ptr<Node>& GetRootNode() const { return m_RootNode; }
 
-	void ClearSelectedNodes() { m_SelectedNodes.clear(); };
+	void ClearSelectedNodes() { m_SelectedNodes.clear(); }
 
-	const int GetNumLods() const { return m_NumLods; };
+	int GetNumLods() const { return m_NumLods; }
 
-	const std::array<float, MAX_LODS>& GetLodRanges() const { return m_LodRanges; };
+	const std::array<float, MAX_LODS>& GetLodRanges() const { return m_LodRanges; }
 };

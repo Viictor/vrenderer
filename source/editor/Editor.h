@@ -7,19 +7,24 @@ namespace vRenderer
 	struct UIData
 	{
 		bool m_ShaderReoladRequested = false;
+		// Terrain params
+		bool m_RenderTerrain = true;
 		bool m_Wireframe = false;
 		bool m_LockView = false;
 		float m_MaxHeight = 10.0f;
 		uint32_t m_NumChunks = 0;
+
 		bool m_ProfilerOpen = true;
 		bool m_FileOpen = false;
 		float m_ProfilerWindowHeight = 0.0f;
+
+		float m_AmbientIntensity = 0.01f;
 	};
 
 	class Editor;
 	struct EditorWindowCallback
 	{
-		EditorWindowCallback(std::function<void(Editor&)> callback)
+		explicit EditorWindowCallback(const std::function<void(Editor&)>& callback)
 			: m_Callback(callback)
 		{}
 

@@ -80,14 +80,14 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 	deviceManager->AddRenderPassToBack(m_Editor.get());
 
 
-	/*std::filesystem::path scenePath = "/media/gltfScenes";
+	std::filesystem::path scenePath = "/media/gltfScenes";
 	m_SceneFilesAvailable = app::FindScenes(*m_RootFs, scenePath);
 	std::string sceneName = app::FindPreferredScene(m_SceneFilesAvailable, "Cube.gltf");
 
 	m_CurrentSceneName = sceneName;
-	ApplicationBase::BeginLoadingScene(m_RootFs, sceneName);*/
+	ApplicationBase::BeginLoadingScene(m_RootFs, sceneName);
 
-	ApplicationBase::SceneLoaded();
+	//ApplicationBase::SceneLoaded();
 }
 
 bool Renderer::LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& fileName)
@@ -303,6 +303,7 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 {
 	m_CommandList->open();
 	{
+		PROFILE_CPU_SCOPE();
 		PROFILE_GPU_SCOPE(m_CommandList, "GPU Frame");
 
 		PROFILE_GPU_BEGIN(m_CommandList, "Scene Refresh");
@@ -330,28 +331,27 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 				true);
 		}
 
-		PROFILE_GPU_BEGIN(m_CommandList, "Terrain");
-		vRenderer::TerrainPass::RenderParams renderParams;
-		renderParams.wireframe = m_Editor->GetUIData().m_Wireframe;
-		renderParams.lockView = m_Editor->GetUIData().m_LockView;
+		if (m_Editor->GetUIData().m_RenderTerrain)
+		{
+			PROFILE_GPU_SCOPE(m_CommandList, "Terrain");
+			vRenderer::TerrainPass::RenderParams renderParams;
+			renderParams.wireframe = m_Editor->GetUIData().m_Wireframe;
+			renderParams.lockView = m_Editor->GetUIData().m_LockView;
 
-		m_TerrainPass->Render(
-			m_CommandList,
-			&m_View,
-			&m_View,
-			*m_RenderTargets->GBufferFramebuffer,
-			renderParams);
-
-		PROFILE_GPU_END(m_CommandList);
-
-
+			m_TerrainPass->Render(
+				m_CommandList,
+				&m_View,
+				&m_View,
+				*m_RenderTargets->GBufferFramebuffer,
+				renderParams);
+		}
 
 		if (m_Scene && m_Scene->GetSceneGraph())
 		{
 			PROFILE_GPU_SCOPE(m_CommandList, "Deferred Lighting");
 			render::DeferredLightingPass::Inputs deferredInputs;
 			deferredInputs.SetGBuffer(*m_RenderTargets);
-			deferredInputs.ambientColorTop = 0.1f;
+			deferredInputs.ambientColorTop = m_Editor->GetUIData().m_AmbientIntensity;
 			deferredInputs.ambientColorBottom = deferredInputs.ambientColorTop * float3(0.3f, 0.4f, 0.3f);
 			deferredInputs.lights = &m_Scene->GetSceneGraph()->GetLights();
 			deferredInputs.output = m_RenderTargets->HdrColor;
@@ -381,6 +381,7 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer) const
 
 void Renderer::Submit()
 {
+	PROFILE_CPU_SCOPE();
 	const Span<nvrhi::CommandListHandle> cmdlists(reinterpret_cast<nvrhi::CommandListHandle*>(&m_CommandList), 1);
 	PROFILE_EXECUTE_COMMANDLISTS(cmdlists);
 	GetDevice()->executeCommandList(m_CommandList);
@@ -410,16 +411,20 @@ void Renderer::RenderUI(Editor& editor)
 	if (ImGui::Button("Reload Shaders"))
 		editor.GetUIData().m_ShaderReoladRequested = true;
 
+	ImGui::Text("Terrain");
+	ImGui::Checkbox("Enable Terrain", &editor.GetUIData().m_RenderTerrain);
 	ImGui::Checkbox("Wireframe", &editor.GetUIData().m_Wireframe);
 	ImGui::Checkbox("Lock View", &editor.GetUIData().m_LockView);
-
 	ImGui::InputFloat("Max Height", &editor.GetUIData().m_MaxHeight, 1.0);
-
 	ImGui::Text("Num instances : %i", editor.GetUIData().m_NumChunks);
 
-	if (m_DirectionalLight)
-		app::LightEditor(*m_DirectionalLight);
 
+	if (m_DirectionalLight)
+	{
+		ImGui::Text("Sun Light");
+		ImGui::InputFloat("Ambient Intensity", &editor.GetUIData().m_AmbientIntensity, 0.01f);
+		app::LightEditor(*m_DirectionalLight);
+	}
 	ImGui::End();
 
 	if (editor.GetUIData().m_ProfilerOpen)
