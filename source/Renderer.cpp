@@ -45,10 +45,10 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 	m_CommandList = GetDevice()->createCommandList();
 
 	// To remove
-	const std::filesystem::path textureFileName = "/media/Rugged Terrain Height Map PNG2k.png";
+	const std::filesystem::path textureFileName = "/media/terrain_heightmap.png";
 	std::shared_ptr<engine::LoadedTexture> heightmapTexture = m_TextureCache->LoadTextureFromFileDeferred(textureFileName, false);
 
-	const std::filesystem::path colorTextureFileName = "/media/Rugged Terrain Diffuse PNG2k.png";
+	const std::filesystem::path colorTextureFileName = "/media/terrain_albedo.png";
 	std::shared_ptr<engine::LoadedTexture> colorTexture = m_TextureCache->LoadTextureFromFileDeferred(colorTextureFileName, true);
 
 	engine::TextureData* textureData = (engine::TextureData*)heightmapTexture.get();

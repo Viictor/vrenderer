@@ -24,6 +24,20 @@ int main(int __argc, const char** __argv)
     deviceParams.enableDebugRuntime = true;
     deviceParams.enableNvrhiValidationLayer = true;
 #endif
+    app::InstanceParameters instanceParams;
+    instanceParams.enableDebugRuntime = deviceParams.enableDebugRuntime;
+    instanceParams.headlessDevice = false;
+    deviceManager->CreateInstance(instanceParams);
+
+    std::vector<donut::app::AdapterInfo> adapters;
+    deviceManager->EnumerateAdapters(adapters);
+
+    for (int i = 0; i < adapters.size(); ++i) {
+        if (adapters[i].name.find("NV") != std::string::npos)
+        {
+            deviceParams.adapterIndex = i;
+        }
+    }
 
 	constexpr uint32_t numQueues = 1;
     //deviceParams.enableComputeQueue = true; numQueues++;
