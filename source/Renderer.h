@@ -35,7 +35,7 @@ namespace vRenderer
 		bool m_RenderTerrain = true;
 		bool m_Wireframe = false;
 		bool m_LockView = false;
-		float m_MaxHeight = 120.0f;
+		float m_MaxHeight = 400.0f;
 		uint32_t m_NumChunks = 0;
 
 		float m_AmbientIntensity = 0.01f;
@@ -126,6 +126,7 @@ namespace vRenderer
 		bool KeyboardUpdate(int key, int scancode, int action, int mods) override;
 		bool MousePosUpdate(double xpos, double ypos) override;
 		bool MouseButtonUpdate(int button, int action, int mods) override;
+		bool MouseScrollUpdate(double xoffset, double yoffset) override;
 		void Animate(float seconds) override;
 		void RenderScene(nvrhi::IFramebuffer* framebuffer) override;
 
@@ -142,6 +143,7 @@ namespace vRenderer
 		std::shared_ptr<donut::engine::Scene> m_Scene;
 
 		donut::app::FirstPersonCamera m_FirstPersonCamera;
+		float m_CameraMoveSpeed;
 
 		tf::Executor& m_Executor;
 

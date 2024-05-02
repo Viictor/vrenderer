@@ -20,6 +20,7 @@ using namespace donut;
 Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& executor)
 	: ApplicationBase(deviceManager)
 	, m_Executor(executor)
+	, m_CameraMoveSpeed(20.0f)
 {
 	SetupProfilingEvents(deviceManager);
 
@@ -65,7 +66,7 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 	CreateRenderPasses();
 
 	m_FirstPersonCamera.LookAt(float3(0.0f, 205.0f, 227.4f), float3(1.0f, 1.8f, .0f));
-	m_FirstPersonCamera.SetMoveSpeed(20.0f);
+	m_FirstPersonCamera.SetMoveSpeed(m_CameraMoveSpeed);
 }
 
 bool Renderer::LoadScene(std::shared_ptr<vfs::IFileSystem> fs, const std::filesystem::path& fileName)
@@ -136,6 +137,17 @@ bool Renderer::MousePosUpdate(double xpos, double ypos)
 bool Renderer::MouseButtonUpdate(int button, int action, int mods)
 {
 	m_FirstPersonCamera.MouseButtonUpdate(button, action, mods);
+	return true;
+}
+
+bool Renderer::MouseScrollUpdate(double xoffset, double yoffset)
+{
+	constexpr float speedFactor = 1.5f;
+
+	m_CameraMoveSpeed += static_cast<float>(yoffset) * speedFactor;
+	m_CameraMoveSpeed = m_CameraMoveSpeed < 0.0f ? 0.0f : m_CameraMoveSpeed; 
+	m_FirstPersonCamera.SetMoveSpeed(m_CameraMoveSpeed);
+
 	return true;
 }
 
