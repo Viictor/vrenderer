@@ -18,9 +18,9 @@ using namespace vRenderer;
 using namespace donut;
 
 constexpr int MAX_INSTANCES = 4096;
-constexpr int SURFACE_SIZE = 256;
-constexpr int WORLD_SIZE = 256;
-constexpr int GRID_SIZE = 16;
+constexpr int SURFACE_SIZE = 512;
+constexpr int WORLD_SIZE = 2048;
+constexpr int GRID_SIZE = 32;
 
 static_assert(WORLD_SIZE >= SURFACE_SIZE && (WORLD_SIZE % SURFACE_SIZE == 0));
 
@@ -184,7 +184,7 @@ void TerrainPass::Render(
 			for (const auto& quadTree : m_QuadTrees)
 			{
 				quadTree->ClearSelectedNodes();
-				quadTree->NodeSelect(float3(view->GetViewOrigin()), quadTree->GetRootNode().get(), quadTree->GetNumLods() - 1, view->GetViewFrustum(), editorParams.m_MaxHeight);
+				quadTree->NodeSelect(float3(view->GetViewOrigin()), quadTree->GetRootNode().get(), quadTree->GetNumLods(), view->GetViewFrustum(), m_MaxHeight);
 
 				UpdateTransforms(quadTree, instanceDataOffset);
 

@@ -16,8 +16,7 @@ QuadTree::QuadTree(const float width, const float height, const float worldSize,
 void QuadTree::Init(const std::shared_ptr<engine::LoadedTexture>& loadedTexture, tf::Executor& executor)
 {
 	const engine::TextureData* textureData = static_cast<engine::TextureData*>(loadedTexture.get());
-
-	m_NumLods = min(MAX_LODS, static_cast<int>(log2(m_Width) + 1));
+	m_NumLods = min(MAX_LODS-1, static_cast<int>(log2(m_Width)));
 	const size_t dataSize = textureData->dataLayout[0][0].dataSize;
 	if (dataSize > 0)
 	{
@@ -145,16 +144,17 @@ float2 QuadTree::GetMinMaxHeightValue(const float2 position, const float width, 
 
 	const float2 maxV = minV + float2(width, height) * m_TexelSize;
 
-	const int2 limitX = int2(static_cast<int>(minV.x), static_cast<int>(maxV.x));
-	const int2 limitY = int2(static_cast<int>(minV.y), static_cast<int>(maxV.y));
+	const int2 limitX = int2(floor(minV.x), ceil(maxV.x));
+	const int2 limitY = int2(floor(minV.y), ceil(maxV.y));
 
 	float2 minMax = float2(infinity, -infinity);
 	for (int i = limitX.x; i < limitX.y; i++)
 	{
 		for (int j = limitY.x; j < limitY.y; j++)
 		{
-			minMax.x = min(minMax.x, GetHeightValue(float2(static_cast<float>(i),static_cast<float>(j))));
-			minMax.y = max(minMax.y, GetHeightValue(float2(static_cast<float>(i),static_cast<float>(j))));
+			float sampledHeight = GetHeightValue(float2(static_cast<float>(i), static_cast<float>(j)));
+			minMax.x = min(minMax.x, sampledHeight);
+			minMax.y = max(minMax.y, sampledHeight);
 		}
 	}
 	return minMax;
@@ -170,7 +170,7 @@ void QuadTree::SetHeight(Node* node, int numSplits)
 	node->m_Extents.y = extent;
 
 	numSplits++;
-	if (numSplits < m_NumLods)
+	if (numSplits <= m_NumLods)
 	{
 		for (int i = 0; i < 4; i++)
 		{
@@ -194,7 +194,7 @@ void QuadTree::Split(Node* node, int numSplits)
 
 	numSplits++;
 
-	if (numSplits < m_NumLods)
+	if (numSplits <= m_NumLods)
 	{
 		for (int i = 0; i < 4; i++)
 		{
