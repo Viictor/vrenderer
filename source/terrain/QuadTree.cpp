@@ -38,13 +38,11 @@ void QuadTree::Init(const std::shared_ptr<engine::LoadedTexture>& loadedTexture,
 
 	m_RootNode = std::make_unique<Node>(m_Location, float3(m_Width / 2.0f, 0.0, m_Height / 2.0f));
 
-	const int numSplits = 1;
-	Split(m_RootNode.get(), numSplits);
+	Split(m_RootNode.get(), 1);
 
 	executor.silent_async([this]()
 		{
-			const int numSplits = 0;
-			SetHeight(m_RootNode.get(), numSplits);
+			SetHeight(m_RootNode.get(), 0);
 			m_HeightLoaded = true;
 			log::info("QuadTree nodes height set");
 		});
@@ -152,7 +150,7 @@ float2 QuadTree::GetMinMaxHeightValue(const float2 position, const float width, 
 	{
 		for (int j = limitY.x; j < limitY.y; j++)
 		{
-			float sampledHeight = GetHeightValue(float2(static_cast<float>(i), static_cast<float>(j)));
+			const float sampledHeight = GetHeightValue(float2(static_cast<float>(i), static_cast<float>(j)));
 			minMax.x = min(minMax.x, sampledHeight);
 			minMax.y = max(minMax.y, sampledHeight);
 		}

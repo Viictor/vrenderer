@@ -358,14 +358,14 @@ nvrhi::ShaderHandle TerrainPass::CreateVertexShader(engine::ShaderFactory& shade
 {
 	std::vector<engine::ShaderMacro> VertexShaderMacros;
 	VertexShaderMacros.push_back(engine::ShaderMacro("MOTION_VECTORS", "0"));
-	return shaderFactory.CreateShader("/shaders/vrenderer/terrain/terrainPass.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
+	return shaderFactory.CreateShader("/shaders/vrenderer/terrain/terrain_vs.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
 }
 
 nvrhi::ShaderHandle TerrainPass::CreatePixelShader(engine::ShaderFactory& shaderFactory, const CreateParameters& params)
 {
 	std::vector<engine::ShaderMacro> PixelShaderMacros;
 	PixelShaderMacros.push_back(engine::ShaderMacro("MOTION_VECTORS", "0"));
-	return shaderFactory.CreateShader("/shaders/vrenderer/terrain/terrainPass.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+	return shaderFactory.CreateShader("/shaders/vrenderer/terrain/terrain_ps.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
 }
 
 nvrhi::BindingLayoutHandle TerrainPass::CreateViewBindingLayout() const
