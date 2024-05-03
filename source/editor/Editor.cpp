@@ -1,4 +1,5 @@
 #include "Editor.h"
+#include "ImGuizmo.h"
 #include "../profiler/Profiler.h"
 
 #include "donut/app/UserInterfaceUtils.h"
@@ -13,6 +14,13 @@ Editor::Editor(donut::app::DeviceManager* deviceManager, std::shared_ptr<donut::
 
 	ImGuiIO& io = ImGui::GetIO();
 	io.KeyMap[ImGuiKey_Space] = GLFW_KEY_SPACE;
+}
+
+void Editor::Animate(float fElapsedTimeSeconds)
+{
+	ImGui_Renderer::Animate(fElapsedTimeSeconds);
+	ImGuizmo::BeginFrame();
+	ImGuizmo::Enable(true);
 }
 
 void Editor::Render(nvrhi::IFramebuffer* framebuffer)

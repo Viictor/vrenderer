@@ -12,7 +12,7 @@
 #include "donut/render/ToneMappingPasses.h"
 
 #include "profiler/Profiler.h"
-#include "editor/Editor.h"
+#include "editor/ImGuizmo.h"
 
 #include "nvrhi/utils.h"
 
@@ -476,5 +476,41 @@ void Renderer::RenderUI()
 		ImGui::Separator();
 		ImGui::InputFloat("Ambient Intensity", &m_EditorParams.m_AmbientIntensity, 0.01f);
 		app::LightEditor(*m_DirectionalLight);
+	}
+
+	ImGui::Checkbox("Debug QuadTree", &m_EditorParams.m_DebugQuadTree);
+
+	if (m_DirectionalLight)
+	{
+		if (m_EditorParams.m_DebugQuadTree)
+		{
+			ImGuiIO& io = ImGui::GetIO();
+			ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+			auto& quadTrees = m_TerrainPass->GetQuadTrees();
+			for (const auto& quadTree : quadTrees)
+			{
+				auto& nodes = quadTree->m_DebugDrawData.culledNodes;
+				for (const Node* node : nodes)
+				{
+					float height = m_EditorParams.m_MaxHeight;
+					float3 size = float3(node->m_Extents.x * 2.0f, node->m_Extents.y * 2.0f * height, node->m_Extents.z * 2.0f);
+					float3 position = float3(node->m_Position.x, node->m_Position.y * height, node->m_Position.z);
+
+					/*size = node->m_Extents * 2.0f;
+					position = node->m_Position;*/
+
+					const float4x4 transform = affineToHomogeneous(scaling(size) * math::translation(position));
+					const float4x4 view = affineToHomogeneous(m_View.GetViewMatrix());
+					const float4x4 proj = m_View.GetProjectionMatrix(true);
+
+					box3 cube = box3(float3(-0.5f), float3(0.5f)) * homogeneousToAffine(transform);
+
+					ImU32 color = m_View.GetViewFrustum().intersectsWith(cube) ? IM_COL32(0, 255, 0, 255) : IM_COL32(255, 0, 0, 255);
+
+					ImGuizmo::DrawCubes(view.m_data, proj.m_data, transform.m_data, 1, color);
+				}
+			}
+		}
 	}
 }

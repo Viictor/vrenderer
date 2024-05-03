@@ -38,6 +38,7 @@ namespace vRenderer
 	public:
 		Editor(donut::app::DeviceManager* deviceManager, std::shared_ptr<donut::vfs::IFileSystem> rootFS, Renderer& renderer);
 
+		void Animate(float fElapsedTimeSeconds) override;
 		void Render(nvrhi::IFramebuffer* framebuffer) override;
 
 		void buildUI() override;

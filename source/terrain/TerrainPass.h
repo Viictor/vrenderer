@@ -146,5 +146,7 @@ namespace vRenderer
 		bool SetupMaterial(GeometryPassContext& context, const engine::Material* material, nvrhi::RasterCullMode cullMode, nvrhi::GraphicsState& state) override;
 		void SetupInputBuffers(GeometryPassContext& context, const engine::BufferGroup* buffers, nvrhi::GraphicsState& state) override;
 		void SetPushConstants(GeometryPassContext& context, nvrhi::ICommandList* commandList, nvrhi::GraphicsState& state, nvrhi::DrawArguments& args) override { }
+
+		const std::vector<std::shared_ptr<QuadTree>>& GetQuadTrees() const { return m_QuadTrees; }
 	};
 }

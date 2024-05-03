@@ -43,6 +43,8 @@ namespace vRenderer
 		float m_AmbientIntensity = 0.01f;
 
 		bool m_ShaderReoladRequested = false;
+
+		bool m_DebugQuadTree = true;
 	};
 
 	class RenderTargets : public donut::render::GBufferRenderTargets

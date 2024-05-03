@@ -183,6 +183,8 @@ void TerrainPass::Render(
 			for (const auto& quadTree : m_QuadTrees)
 			{
 				quadTree->ClearSelectedNodes();
+				quadTree->m_DebugDrawData.view = view;
+				quadTree->m_DebugDrawData.culledNodes.clear();
 				quadTree->NodeSelect(float3(view->GetViewOrigin()), quadTree->GetRootNode().get(), quadTree->GetNumLods(), view->GetViewFrustum(), m_MaxHeight);
 
 				UpdateTransforms(quadTree, instanceDataOffset);

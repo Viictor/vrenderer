@@ -4,6 +4,9 @@
 #include <donut/core/vfs/VFS.h>
 #include <taskflow/taskflow.hpp>
 
+#include "../editor/ImGuizmo.h"
+#include "donut/engine/View.h"
+
 QuadTree::QuadTree(const float width, const float height, const float worldSize, const float3 location)
 	: m_Location(location)
 	, m_Width(width)
@@ -40,12 +43,12 @@ void QuadTree::Init(const std::shared_ptr<engine::LoadedTexture>& loadedTexture,
 
 	Split(m_RootNode.get(), 1);
 
-	/*executor.silent_async([this]()
+	executor.silent_async([this]()
 		{
 			SetHeight(m_RootNode.get(), 0);
 			m_HeightLoaded = true;
 			log::info("QuadTree nodes height set");
-		});*/
+		});
 }
 
 void QuadTree::Print(const Node* node, int level)
@@ -91,9 +94,14 @@ bool QuadTree::NodeSelect(const float3 position, const Node* node, const int lod
 		min.y = 0.0f;
 		max.y = position.y;
 	}
+	box3 cube = box3(min, max);
 	
-	if (!frustum.intersectsWith(box3(min, max)))
+	if (!frustum.intersectsWith(cube))
+	{
+		m_DebugDrawData.culledNodes.push_back(node);
+		DebugDraw(node);
 		return true; // Node out of frustum - return true to prevent parent from being selected
+	}
 
 	if (lodLevel == 0) // Add leaf nodes
 	{
@@ -121,6 +129,26 @@ bool QuadTree::NodeSelect(const float3 position, const Node* node, const int lod
 		}
 	}
 	return true;
+}
+
+void QuadTree::DebugDraw(const Node* node) const
+{
+	//float height = m_DebugDrawData.view->GetViewOrigin().y * 0.5f;
+	//float3 size = float3(node->m_Extents.x * 2.0f, height, node->m_Extents.z * 2.0f);
+	//float3 position = float3(node->m_Position.x, height, node->m_Position.z);
+
+	float3 size = node->m_Extents * 2.0f;
+	float3 position = node->m_Position;
+
+	const float4x4 transform = affineToHomogeneous(scaling(size) * math::translation(position));
+	const float4x4 view = affineToHomogeneous(m_DebugDrawData.view->GetViewMatrix());
+	const float4x4 proj = m_DebugDrawData.view->GetProjectionMatrix(true);
+
+	box3 cube = box3(float3(-0.5f), float3(0.5f)) * homogeneousToAffine(transform);
+
+	ImU32 color = m_DebugDrawData.view->GetViewFrustum().intersectsWith(cube) ? IM_COL32(0, 255, 0, 255) : IM_COL32(255, 0, 0, 255);
+
+	ImGuizmo::DrawCubes(view.m_data, proj.m_data, transform.m_data, 1, color);
 }
 
 float QuadTree::GetHeightValue(const float2 position) const

@@ -6,6 +6,11 @@
 #include <memory>
 #include <vector>
 
+namespace donut::engine
+{
+	class IView;
+}
+
 using namespace donut;
 using namespace donut::math;
 
@@ -111,4 +116,12 @@ public:
 	int GetNumLods() const { return m_NumLods; }
 
 	const std::array<float, MAX_LODS>& GetLodRanges() const { return m_LodRanges; }
+
+	void DebugDraw(const Node* node) const;
+
+	struct DebugDrawData
+	{
+		const engine::IView* view;
+		std::vector<const Node*> culledNodes;
+	} m_DebugDrawData;
 };
