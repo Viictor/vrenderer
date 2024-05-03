@@ -490,11 +490,11 @@ void Renderer::RenderUI()
 			auto& quadTrees = m_TerrainPass->GetQuadTrees();
 			for (const auto& quadTree : quadTrees)
 			{
-				auto& nodes = quadTree->m_DebugDrawData.culledNodes;
+				auto& nodes = quadTree->GetSelectedNodes();
 				for (const Node* node : nodes)
 				{
 					float height = m_EditorParams.m_MaxHeight;
-					float3 size = float3(node->m_Extents.x * 2.0f, node->m_Extents.y * 2.0f * height, node->m_Extents.z * 2.0f);
+					float3 size = float3(node->m_Extents.x * 2.0f, node->m_Extents.y * height, node->m_Extents.z * 2.0f);
 					float3 position = float3(node->m_Position.x, node->m_Position.y * height, node->m_Position.z);
 
 					/*size = node->m_Extents * 2.0f;

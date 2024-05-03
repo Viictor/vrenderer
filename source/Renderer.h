@@ -44,7 +44,7 @@ namespace vRenderer
 
 		bool m_ShaderReoladRequested = false;
 
-		bool m_DebugQuadTree = true;
+		bool m_DebugQuadTree = false;
 	};
 
 	class RenderTargets : public donut::render::GBufferRenderTargets

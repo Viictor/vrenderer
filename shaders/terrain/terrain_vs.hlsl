@@ -49,6 +49,7 @@ void main_vs(
     float2 gridPos = (i_vtx.pos.xz + 1.0) * 0.5;
     worldPos.xz = morphVertex(gridPos, worldPos.xz, morphK, gridExtents);
     worldPos.y = sampleHeight(worldPos.xz);
+    // worldPos.y = worldPos.y * c_TerrainParams.maxHeight;
 
     o_debug = float3(worldPos.y, worldPos.y, worldPos.y) / c_TerrainParams.maxHeight;
     o_debug = float3(i_instance, i_instance, i_instance);

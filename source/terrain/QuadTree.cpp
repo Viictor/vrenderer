@@ -43,12 +43,12 @@ void QuadTree::Init(const std::shared_ptr<engine::LoadedTexture>& loadedTexture,
 
 	Split(m_RootNode.get(), 1);
 
-	executor.silent_async([this]()
+	/*executor.silent_async([this]()
 		{
 			SetHeight(m_RootNode.get(), 0);
 			m_HeightLoaded = true;
 			log::info("QuadTree nodes height set");
-		});
+		});*/
 }
 
 void QuadTree::Print(const Node* node, int level)
@@ -99,7 +99,6 @@ bool QuadTree::NodeSelect(const float3 position, const Node* node, const int lod
 	if (!frustum.intersectsWith(cube))
 	{
 		m_DebugDrawData.culledNodes.push_back(node);
-		DebugDraw(node);
 		return true; // Node out of frustum - return true to prevent parent from being selected
 	}
 

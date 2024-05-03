@@ -18,7 +18,7 @@ using namespace vRenderer;
 using namespace donut;
 
 constexpr int MAX_INSTANCES = 4096;
-constexpr int SURFACE_SIZE = 256;
+constexpr int SURFACE_SIZE = 2048;
 constexpr int WORLD_SIZE = 2048;
 constexpr int GRID_SIZE = 32;
 
