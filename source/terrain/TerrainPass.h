@@ -31,10 +31,11 @@ namespace vRenderer
 				nvrhi::RasterFillMode fillMode : 2;
 				bool frontCounterClockwise : 1;
 				bool reverseDepth : 1;
+				bool depthOnly : 1;
 			} bits;
 			uint32_t value;
 
-			static constexpr size_t Count = 1 << 6;
+			static constexpr size_t Count = 1 << 7;
 		};
 
 		class Context : public GeometryPassContext
@@ -59,6 +60,7 @@ namespace vRenderer
 		{
 			bool wireframe = false;
 			bool lockView = false;
+			bool depthOnly = false;
 		};
 
 	protected:

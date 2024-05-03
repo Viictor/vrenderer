@@ -51,6 +51,7 @@ void main_vs(
     worldPos.y = sampleHeight(worldPos.xz);
 
     o_debug = float3(worldPos.y, worldPos.y, worldPos.y) / c_TerrainParams.maxHeight;
+    o_debug = float3(i_instance, i_instance, i_instance);
 
     o_vtx = i_vtx;
     o_vtx.pos = worldPos.xyz;

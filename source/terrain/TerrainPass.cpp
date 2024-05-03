@@ -18,7 +18,7 @@ using namespace vRenderer;
 using namespace donut;
 
 constexpr int MAX_INSTANCES = 4096;
-constexpr int SURFACE_SIZE = 512;
+constexpr int SURFACE_SIZE = 256;
 constexpr int WORLD_SIZE = 2048;
 constexpr int GRID_SIZE = 32;
 
@@ -26,7 +26,7 @@ static_assert(WORLD_SIZE >= SURFACE_SIZE && (WORLD_SIZE % SURFACE_SIZE == 0));
 
 struct TerrainPass::Resources
 {
-	std::vector<InstanceData> instanceData;
+	std::array<InstanceData, MAX_INSTANCES> instanceData;
 	std::shared_ptr<engine::LoadedTexture> heightmapTexture;
 	std::shared_ptr<engine::LoadedTexture> colorTexture;
 };
@@ -36,7 +36,6 @@ TerrainPass::TerrainPass(nvrhi::IDevice* device, std::shared_ptr<engine::CommonR
 	, m_CommonPasses(std::move(commonPasses))
 {
 	m_Resources = std::make_shared<Resources>();
-	m_Resources->instanceData.resize((MAX_INSTANCES));
 }
 
 void TerrainPass::Init(engine::ShaderFactory& shaderFactory, const CreateParameters& params, nvrhi::ICommandList* commandList, const std::shared_ptr<engine::LoadedTexture>& heightmapTexture, const std::shared_ptr<engine::LoadedTexture>& colorTexture, tf::Executor& executor)
@@ -156,8 +155,8 @@ void TerrainPass::Render(
 	const RenderParams& renderParams,
 	EditorParams& editorParams)
 {
-	PROFILE_CPU_SCOPE();
-	commandList->beginMarker("TerrainPass");
+	PROFILE_CPU_BEGIN(renderParams.depthOnly ? "TerrainPassDepth" : "TerrainPass");
+	commandList->beginMarker(renderParams.depthOnly ? "TerrainPassDepth" : "TerrainPass");
 
 	m_RenderParams = renderParams;
 	m_MaxHeight = editorParams.m_MaxHeight;
@@ -177,7 +176,7 @@ void TerrainPass::Render(
 
 		assert(view != nullptr);
 
-		editorParams.m_NumChunks = 0;
+		int numNodes = 0;
 		if (!m_RenderParams.lockView)
 		{
 			int instanceDataOffset = 0;
@@ -190,8 +189,18 @@ void TerrainPass::Render(
 
 				instanceDataOffset += static_cast<int>(quadTree->GetSelectedNodes().size());
 			}
+			numNodes = instanceDataOffset;
 			commandList->writeBuffer(m_Buffers->instanceBuffer, m_Resources->instanceData.data(), m_Resources->instanceData.size() * sizeof(InstanceData));
+			commandList->setBufferState(m_Buffers->instanceBuffer, nvrhi::ResourceStates::VertexBuffer);
 		}
+		else
+		{
+			for (const auto& quadTree : m_QuadTrees)
+			{
+				numNodes += static_cast<int>(quadTree->GetSelectedNodes().size());
+			}
+		}
+		editorParams.m_NumChunks = numNodes;
 
 		nvrhi::IFramebuffer* framebuffer = framebufferFactory.GetFramebuffer(*view);
 		Context passContext;
@@ -204,9 +213,7 @@ void TerrainPass::Render(
 
 		SetupInputBuffers(passContext, m_Buffers.get(), graphicsState);
 
-		const bool drawMaterial = SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::Back, graphicsState);
-
-		if (drawMaterial)
+		if (SetupMaterial(passContext, nullptr, nvrhi::RasterCullMode::Back, graphicsState))
 		{
 			commandList->setGraphicsState(graphicsState);
 
@@ -215,20 +222,18 @@ void TerrainPass::Render(
 			args.startVertexLocation = m_MeshInfo->vertexOffset + m_MeshInfo->geometries[0]->vertexOffsetInMesh;
 			args.startIndexLocation = m_MeshInfo->indexOffset + m_MeshInfo->geometries[0]->indexOffsetInMesh;
 			args.startInstanceLocation = 0;
+			args.instanceCount += numNodes;
 
-			for (int i = 0; i < m_QuadTrees.size(); i++)
-			{
-				const std::shared_ptr<QuadTree>& quadTree = m_QuadTrees[i];
-				int numNodes = int(quadTree->GetSelectedNodes().size());
-
-				editorParams.m_NumChunks += numNodes;
-				args.instanceCount += numNodes;
-			}
 			commandList->drawIndexed(args);
+		}
+		else
+		{
+			log::info("TerrainPass::Render - Couldn't create PSO");
 		}
 	}
 
 	commandList->endMarker();
+	PROFILE_CPU_END();
 }
 
 void vRenderer::TerrainPass::UpdateTransforms(const std::shared_ptr<QuadTree>& quadTree, const int instanceDataOffset) const
@@ -309,6 +314,7 @@ bool TerrainPass::SetupMaterial(GeometryPassContext& context, const engine::Mate
 	PipelineKey key = terrainContext.keyTemplate;
 	key.bits.cullMode = cullMode;
 	key.bits.fillMode = m_RenderParams.wireframe ? nvrhi::RasterFillMode::Wireframe : nvrhi::RasterFillMode::Fill;
+	key.bits.depthOnly = m_RenderParams.depthOnly;
 
 	nvrhi::GraphicsPipelineHandle& pipeline = m_Pipelines[key.value];
 
@@ -461,7 +467,12 @@ nvrhi::GraphicsPipelineHandle TerrainPass::CreateGraphicsPipeline(const Pipeline
 	nvrhi::GraphicsPipelineDesc pipelineDescs;
 	pipelineDescs.inputLayout = m_InputLayout;
 	pipelineDescs.VS = m_VertexShader;
-	pipelineDescs.PS = m_PixelShader;
+	pipelineDescs.PS = key.bits.depthOnly ? nullptr : m_PixelShader;
+
+	pipelineDescs.renderState.rasterState.depthBias = 0;
+	pipelineDescs.renderState.rasterState.depthBiasClamp = 0.0f;
+	pipelineDescs.renderState.rasterState.slopeScaledDepthBias = 0.0f;
+
 	pipelineDescs.renderState.rasterState.frontCounterClockwise = key.bits.frontCounterClockwise;
 	pipelineDescs.renderState.rasterState.setCullMode(key.bits.cullMode);
 	pipelineDescs.renderState.rasterState.setFillMode(key.bits.fillMode);
@@ -498,7 +509,7 @@ nvrhi::BufferHandle TerrainPass::CreateInstanceBuffer(nvrhi::IDevice* device) co
 {
 	nvrhi::BufferDesc bufferDesc;
 	bufferDesc.byteSize = sizeof(InstanceData) * m_Resources->instanceData.size();
-	bufferDesc.debugName = "Instances";
+	bufferDesc.debugName = "Terrain Instance Transform Data";
 	bufferDesc.structStride = /*m_EnableBindlessResources*/false ? sizeof(InstanceData) : 0;
 	bufferDesc.canHaveRawViews = true;
 	bufferDesc.canHaveUAVs = true;

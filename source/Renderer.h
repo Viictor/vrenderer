@@ -12,6 +12,8 @@
 #include "donut/render/GBufferFillPass.h"
 #include "donut/render/SkyPass.h"
 #include "donut/render/ToneMappingPasses.h"
+#include "donut/render/CascadedShadowMap.h"
+#include "donut/render/DepthPass.h"
 
 #include "terrain/TerrainPass.h"
 
@@ -158,6 +160,11 @@ namespace vRenderer
 
 		std::unique_ptr<donut::render::SkyPass> m_SkyPass;
 		std::shared_ptr<donut::engine::DirectionalLight> m_DirectionalLight;
+
+		//Shadows
+		std::shared_ptr<CascadedShadowMap> m_ShadowMap;
+		std::shared_ptr<engine::FramebufferFactory> m_ShadowFramebuffer;
+		std::shared_ptr<DepthPass> m_ShadowDepthPass; // remove
 
 		std::unique_ptr<donut::render::ToneMappingPass> m_ToneMappingPass;
 

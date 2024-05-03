@@ -14,6 +14,8 @@
 #include "profiler/Profiler.h"
 #include "editor/Editor.h"
 
+#include "nvrhi/utils.h"
+
 using namespace vRenderer;
 using namespace donut;
 
@@ -63,6 +65,33 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 	m_TerrainPass = std::make_unique<TerrainPass>(GetDevice(), m_CommonPasses);
 	m_TerrainPass->Init(*m_ShaderFactory, TerrainPass::CreateParameters(), m_CommandList, heightmapTexture, colorTexture, m_Executor);
 
+	// Shadows
+	{
+		const nvrhi::Format shadowMapFormats[] = {
+			nvrhi::Format::D24S8,
+			nvrhi::Format::D32,
+			nvrhi::Format::D16,
+			nvrhi::Format::D32S8 };
+
+		const nvrhi::FormatSupport shadowMapFeatures =
+			nvrhi::FormatSupport::Texture |
+			nvrhi::FormatSupport::DepthStencil |
+			nvrhi::FormatSupport::ShaderLoad;
+
+		nvrhi::Format shadowMapFormat = nvrhi::utils::ChooseFormat(GetDevice(), shadowMapFeatures, shadowMapFormats, std::size(shadowMapFormats));
+
+		m_ShadowMap = std::make_shared<CascadedShadowMap>(GetDevice(), 2048, 4, 0, shadowMapFormat);
+		m_ShadowMap->SetupProxyViews();
+
+		m_ShadowFramebuffer = std::make_shared<engine::FramebufferFactory>(GetDevice());
+		m_ShadowFramebuffer->DepthTarget = m_ShadowMap->GetTexture();
+
+		DepthPass::CreateParameters shadowDepthParams;
+		shadowDepthParams.slopeScaledDepthBias = 4.f;
+		shadowDepthParams.depthBias = 100;
+		m_ShadowDepthPass = std::make_shared<DepthPass>(GetDevice(), m_CommonPasses);
+		m_ShadowDepthPass->Init(*m_ShaderFactory, shadowDepthParams);
+	}
 	CreateRenderPasses();
 
 	m_FirstPersonCamera.LookAt(float3(0.0f, 205.0f, 227.4f), float3(1.0f, 1.8f, .0f));
@@ -301,6 +330,57 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer)
 			m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
 		PROFILE_GPU_END(m_CommandList);
 
+		if (false && m_DirectionalLight)
+		{
+			PROFILE_GPU_SCOPE(m_CommandList, "Cascade ShadowMap");
+			m_DirectionalLight->shadowMap = m_ShadowMap;
+			box3 sceneBounds = m_Scene->GetSceneGraph()->GetRootNode()->GetGlobalBoundingBox();
+
+			frustum projectionFrustum = m_View.GetProjectionFrustum();
+			constexpr float maxShadowDistance = 1024.f;
+
+			dm::affine3 viewMatrixInv = m_View.GetChildView(engine::ViewType::PLANAR, 0)->GetInverseViewMatrix();
+
+			float zRange = length(sceneBounds.diagonal()) * 0.5f;
+
+			float2 maxW = { 1024, 1024 };
+			float2 minW = { -1024, -1024 };
+			zRange = length(maxW - minW) * 0.5f;
+
+			m_ShadowMap->SetupForPlanarViewStable(*m_DirectionalLight, projectionFrustum, viewMatrixInv, maxShadowDistance, zRange, zRange, 4.0f);
+
+			m_ShadowMap->Clear(m_CommandList);
+
+			if (m_EditorParams.m_RenderTerrain)
+			{
+				PROFILE_GPU_SCOPE(m_CommandList, "Terrain Shadow");
+				vRenderer::TerrainPass::RenderParams renderParams;
+				renderParams.wireframe = m_EditorParams.m_Wireframe;
+				renderParams.lockView = m_EditorParams.m_LockView;
+				renderParams.depthOnly = true;
+
+				m_TerrainPass->Render(
+					m_CommandList,
+					&m_ShadowMap->GetView(),
+					&m_ShadowMap->GetView(),
+					*m_ShadowFramebuffer,
+					renderParams,
+					m_EditorParams);
+			}
+
+			DepthPass::Context context;
+
+			RenderCompositeView(m_CommandList,
+				&m_ShadowMap->GetView(), nullptr,
+				*m_ShadowFramebuffer,
+				m_Scene->GetSceneGraph()->GetRootNode(),
+				*m_OpaqueDrawStrategy,
+				*m_ShadowDepthPass,
+				context,
+				"ShadowMap",
+				true);
+		}
+
 		m_RenderTargets->Clear(m_CommandList);
 
 		if (m_Scene && m_Scene->GetSceneGraph())
@@ -348,8 +428,6 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer)
 
 			m_DeferredLightingPass->Render(m_CommandList, m_View, deferredInputs);
 		}
-
-
 
 		PROFILE_GPU_BEGIN(m_CommandList, "ToneMapping");
 		m_ToneMappingPass->SimpleRender(m_CommandList, ToneMappingParameters(), m_View, m_RenderTargets->HdrColor);
