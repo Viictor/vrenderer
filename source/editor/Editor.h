@@ -1,6 +1,7 @@
 #pragma once
 
 #include <donut/app/imgui_renderer.h>
+#include "imguiPlot/implot.h"
 #include "../Renderer.h"
 
 namespace vRenderer
@@ -35,8 +36,11 @@ namespace vRenderer
 		std::list<EditorWindowCallback*> m_EditorWindows;
 		std::vector<std::string> m_SceneFilesAvailable;
 
+		float m_ElapsedTime;
+
 	public:
 		Editor(donut::app::DeviceManager* deviceManager, std::shared_ptr<donut::vfs::IFileSystem> rootFS, Renderer& renderer);
+		~Editor();
 
 		void Animate(float fElapsedTimeSeconds) override;
 		void Render(nvrhi::IFramebuffer* framebuffer) override;

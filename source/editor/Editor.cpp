@@ -10,14 +10,21 @@ Editor::Editor(donut::app::DeviceManager* deviceManager, std::shared_ptr<donut::
 	: ImGui_Renderer(deviceManager)
 	, m_Renderer(renderer)
 {
+	ImPlot::CreateContext();
 	ImGui::GetIO().IniFilename = nullptr;
 
 	ImGuiIO& io = ImGui::GetIO();
 	io.KeyMap[ImGuiKey_Space] = GLFW_KEY_SPACE;
 }
 
+Editor::~Editor()
+{
+	ImPlot::DestroyContext();
+}
+
 void Editor::Animate(float fElapsedTimeSeconds)
 {
+	m_ElapsedTime = fElapsedTimeSeconds;
 	ImGui_Renderer::Animate(fElapsedTimeSeconds);
 	ImGuizmo::BeginFrame();
 	ImGuizmo::Enable(true);
@@ -50,9 +57,25 @@ void Editor::buildUI()
 	if (frameTime > 0.0)
 		ImGui::Text("%.3f ms/frame (%.1f FPS)", frameTime * 1e3, 1.0 / frameTime);
 
+	ImVec2 viewportSize = ImGui::GetMainViewport()->WorkSize;
+	/*ImGui::SetNextWindowPos(ImVec2(380.f, 10.0f + GetUIData().m_ProfilerWindowHeight));
+	ImGui::SetNextWindowSize(ImVec2(viewportSize.x - 390.0f, donut::math::max(290.0f, GetUIData().m_ProfilerWindowHeight)));
+	ImGui::Begin("Frames", 0);*/
+	static std::vector<float> frameTimes;
+	if (ImPlot::BeginPlot("Frame Times", ImVec2(-1, 0), ImPlotFlags_NoInputs | ImPlotFlags_NoTitle))
+	{
+		//Update FrameTimes
+		frameTimes.push_back(m_ElapsedTime * 1e3);
+		if (frameTimes.size() > 1500) frameTimes.erase(frameTimes.begin());
+
+		ImPlot::SetupAxes("time", "ms", ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
+		ImPlot::PlotLine("Frame Times", frameTimes.data(), static_cast<int>(frameTimes.size()), 0.1, 0, ImPlotLineFlags_Shaded);
+		ImPlot::EndPlot();
+	}
+	//ImGui::End();
+
 	if (GetUIData().m_ProfilerOpen)
 	{
-		ImVec2 viewportSize = ImGui::GetMainViewport()->WorkSize;
 		ImGui::SetNextWindowPos(ImVec2(380.f, 10.f), 0);
 		ImGui::SetNextWindowSize(ImVec2(viewportSize.x - 390.0f, donut::math::max(290.0f, GetUIData().m_ProfilerWindowHeight)));
 		ImGui::Begin("Profiler", &GetUIData().m_ProfilerOpen, ImGuiWindowFlags_NoResize);

@@ -17,13 +17,6 @@ using namespace donut::math;
 using namespace vRenderer;
 using namespace donut;
 
-constexpr int MAX_INSTANCES = 4096;
-constexpr int SURFACE_SIZE = 2048;
-constexpr int WORLD_SIZE = 2048;
-constexpr int GRID_SIZE = 32;
-
-static_assert(WORLD_SIZE >= SURFACE_SIZE && (WORLD_SIZE % SURFACE_SIZE == 0));
-
 struct TerrainPass::Resources
 {
 	std::array<InstanceData, MAX_INSTANCES> instanceData;
@@ -471,9 +464,12 @@ nvrhi::GraphicsPipelineHandle TerrainPass::CreateGraphicsPipeline(const Pipeline
 	pipelineDescs.VS = m_VertexShader;
 	pipelineDescs.PS = key.bits.depthOnly ? nullptr : m_PixelShader;
 
-	pipelineDescs.renderState.rasterState.depthBias = 0;
-	pipelineDescs.renderState.rasterState.depthBiasClamp = 0.0f;
-	pipelineDescs.renderState.rasterState.slopeScaledDepthBias = 0.0f;
+	if (key.bits.depthOnly)
+	{
+		pipelineDescs.renderState.rasterState.depthBias = 0;
+		pipelineDescs.renderState.rasterState.depthBiasClamp = 0.0f;
+		pipelineDescs.renderState.rasterState.slopeScaledDepthBias = 0.0f;
+	}
 
 	pipelineDescs.renderState.rasterState.frontCounterClockwise = key.bits.frontCounterClockwise;
 	pipelineDescs.renderState.rasterState.setCullMode(key.bits.cullMode);

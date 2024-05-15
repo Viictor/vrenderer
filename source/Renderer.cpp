@@ -80,7 +80,7 @@ Renderer::Renderer(donut::app::DeviceManager* deviceManager, tf::Executor& execu
 
 		nvrhi::Format shadowMapFormat = nvrhi::utils::ChooseFormat(GetDevice(), shadowMapFeatures, shadowMapFormats, std::size(shadowMapFormats));
 
-		m_ShadowMap = std::make_shared<CascadedShadowMap>(GetDevice(), 2048, 4, 0, shadowMapFormat);
+		m_ShadowMap = std::make_shared<CascadedShadowMap>(GetDevice(), 2048, 1, 0, shadowMapFormat);
 		m_ShadowMap->SetupProxyViews();
 
 		m_ShadowFramebuffer = std::make_shared<engine::FramebufferFactory>(GetDevice());
@@ -330,24 +330,22 @@ void Renderer::RecordCommand(nvrhi::IFramebuffer* framebuffer)
 			m_Scene->RefreshBuffers(m_CommandList, GetFrameIndex()); // Updates any geometry, material, etc buffer changes
 		PROFILE_GPU_END(m_CommandList);
 
-		if (false && m_DirectionalLight)
+		if (m_DirectionalLight)
 		{
 			PROFILE_GPU_SCOPE(m_CommandList, "Cascade ShadowMap");
 			m_DirectionalLight->shadowMap = m_ShadowMap;
+			
+			// Unused
 			box3 sceneBounds = m_Scene->GetSceneGraph()->GetRootNode()->GetGlobalBoundingBox();
+			float zRange = length(sceneBounds.diagonal()) * 0.5f;
+			// Unused
 
 			frustum projectionFrustum = m_View.GetProjectionFrustum();
-			constexpr float maxShadowDistance = 1024.f;
-
 			dm::affine3 viewMatrixInv = m_View.GetChildView(engine::ViewType::PLANAR, 0)->GetInverseViewMatrix();
+			constexpr float maxShadowDistance = static_cast<float>(TerrainSettings::WORLD_SIZE);
+			zRange = static_cast<float>(TerrainSettings::WORLD_SIZE);
 
-			float zRange = length(sceneBounds.diagonal()) * 0.5f;
-
-			float2 maxW = { 1024, 1024 };
-			float2 minW = { -1024, -1024 };
-			zRange = length(maxW - minW) * 0.5f;
-
-			m_ShadowMap->SetupForPlanarViewStable(*m_DirectionalLight, projectionFrustum, viewMatrixInv, maxShadowDistance, zRange, zRange, 4.0f);
+			m_ShadowMap->SetupForPlanarViewStable(*m_DirectionalLight, projectionFrustum, viewMatrixInv, maxShadowDistance, zRange, zRange, 4.0f, float3::zero(), 1);
 
 			m_ShadowMap->Clear(m_CommandList);
 

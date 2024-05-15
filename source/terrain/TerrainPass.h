@@ -20,6 +20,15 @@ namespace vRenderer
 {
 	struct EditorParams;
 
+	enum TerrainSettings : int
+	{
+		MAX_INSTANCES = 4096,
+		SURFACE_SIZE = 2048,
+		WORLD_SIZE = 2048,
+		GRID_SIZE = 32
+	};
+	static_assert(WORLD_SIZE >= SURFACE_SIZE && (WORLD_SIZE % SURFACE_SIZE == 0));
+
 	class TerrainPass : public IGeometryPass
 	{
 	public:
