@@ -62,6 +62,7 @@ void Editor::buildUI()
 	ImGui::SetNextWindowSize(ImVec2(viewportSize.x - 390.0f, donut::math::max(290.0f, GetUIData().m_ProfilerWindowHeight)));
 	ImGui::Begin("Frames", 0);*/
 	static std::vector<float> frameTimes;
+	static std::vector<float> frameTimesGPU;
 	if (ImPlot::BeginPlot("Frame Times", ImVec2(-1, 0), ImPlotFlags_NoInputs | ImPlotFlags_NoTitle))
 	{
 		//Update FrameTimes
@@ -69,7 +70,24 @@ void Editor::buildUI()
 		if (frameTimes.size() > 1500) frameTimes.erase(frameTimes.begin());
 
 		ImPlot::SetupAxes("time", "ms", ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
-		ImPlot::PlotLine("Frame Times", frameTimes.data(), static_cast<int>(frameTimes.size()), 0.1, 0, ImPlotLineFlags_Shaded);
+		ImPlot::PlotLine("Frame Times", frameTimes.data(), static_cast<int>(frameTimes.size()), 1, 0, ImPlotLineFlags_Shaded);
+
+		URange gpuRange = gGPUProfiler.GetFrameRange();
+		for (const GPUProfiler::QueueInfo& queue : gGPUProfiler.GetQueues())
+		{
+			for (uint32 i = gpuRange.Begin; i < gpuRange.End; ++i)
+			{
+				Span<const GPUProfiler::EventData::Event> events = gGPUProfiler.GetEventsForQueue(queue, i);
+				if (!events.empty())
+				{
+					frameTimesGPU.push_back(queue.TicksToMS(events[0].TicksEnd - events[0].TicksBegin));
+					if (frameTimesGPU.size() > 1500) frameTimesGPU.erase(frameTimesGPU.begin());
+
+				}
+			}
+		}
+		ImPlot::PlotLine("GPU Frame Times", frameTimesGPU.data(), static_cast<int>(frameTimesGPU.size()), 1, 0, ImPlotLineFlags_Shaded);
+
 		ImPlot::EndPlot();
 	}
 	//ImGui::End();
